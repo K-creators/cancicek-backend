@@ -1,46 +1,67 @@
-const router = require('express').Router();
-const Product = require('../models/Product');
+// backend/routes/product.js
+const router = require("express").Router();
+const Product = require("../models/Product");
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
 
-// 1. ÜRÜN EKLEME (Sadece Admin - Şimdilik herkese açık yapıyoruz test için)
-router.post('/', async (req, res) => {
+// Cloudinary Ayarları (Banner ile aynı)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const upload = multer({ dest: 'uploads/' });
+
+// ÜRÜN EKLE (RESİMLİ)
+router.post("/", upload.single('image'), async (req, res) => {
   try {
-    const newProduct = new Product(req.body);
+    let imageUrl = "";
+
+    // Eğer resim seçildiyse yükle
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "cancicek_products",
+        resource_type: "image"
+      });
+      imageUrl = result.secure_url;
+      fs.unlinkSync(req.file.path); // Geçici dosyayı sil
+    } else {
+        // Resim yoksa varsayılan veya boş gönder
+        imageUrl = req.body.imageUrl || "https://via.placeholder.com/150";
+    }
+
+    const newProduct = new Product({
+      title: req.body.title,
+      desc: req.body.desc,
+      price: req.body.price,
+      images: [imageUrl], // Bizim yapı array (liste) tutuyor
+      category: req.body.category,
+      deliveryScope: req.body.deliveryScope
+    });
+
     const savedProduct = await newProduct.save();
     res.status(200).json(savedProduct);
+
   } catch (err) {
+    console.log(err);
     res.status(500).json(err);
   }
 });
 
-// 2. TÜM ÜRÜNLERİ GETİR
-router.get('/', async (req, res) => {
+// TÜM ÜRÜNLERİ GETİR
+router.get("/", async (req, res) => {
   try {
-    // Kategoriye göre filtreleme (Opsiyonel: ?category=Buket)
-    const qCategory = req.query.category;
     let products;
-
-    if (qCategory) {
-      products = await Product.find({
-        category: { $in: [qCategory] },
-      });
+    if (req.query.category) {
+      products = await Product.find({ category: req.query.category });
     } else {
       products = await Product.find();
     }
-
     res.status(200).json(products);
   } catch (err) {
     res.status(500).json(err);
   }
 });
-
-// 3. TEK BİR ÜRÜNÜ GETİR (Detay Sayfası İçin)
-router.get('/find/:id', async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    res.status(200).json(product);
-  } catch (err) {
-    res.status(500).json(err);
-  }
-});
-
 module.exports = router;
