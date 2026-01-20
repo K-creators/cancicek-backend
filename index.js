@@ -8,6 +8,7 @@ const authRoute = require('./routes/auth');
 const productRoute = require('./routes/products');
 const orderRoute = require('./routes/orders'); // Sipariş rotası
 const instagramRoute = require('./routes/instagram');
+const bannerRoute = require('./routes/banner');
 
 dotenv.config();
 const app = express();
@@ -31,7 +32,8 @@ app.use("/api/auth", authRoute);
 // Ürünleri çekme sistemi:
 app.use("/api/products", productRoute); 
 // Sipariş verme sistemi:
-app.use("/api/orders", orderRoute);    
+app.use("/api/orders", orderRoute);  
+app.use("/api/banners", bannerRoute);  
 
 // Test için Ana Sayfa Rotası
 app.get('/', (req, res) => {
