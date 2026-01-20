@@ -34,7 +34,7 @@ router.post("/", upload.single('image'), async (req, res) => {
 
     const newProduct = new Product({
       title: req.body.title,
-      desc: req.body.desc,
+      description: req.body.desc,
       price: req.body.price,
       images: [imageUrl], // Bizim yapı array (liste) tutuyor
       category: req.body.category,
