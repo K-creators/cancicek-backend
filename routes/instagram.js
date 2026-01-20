@@ -4,22 +4,23 @@ const axios = require('axios'); // Eğer yüklü değilse terminalde: npm instal
 
 router.get('/', async (req, res) => {
   try {
-    // .env dosyasından tokeni alacağız
+    // BU İKİ SATIR ÇOK ÖNEMLİ (Bunlar eksik olduğu için hata alıyorsun)
     const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+    const businessId = process.env.INSTAGRAM_BUSINESS_ID; 
 
-    if (!accessToken) {
-      return res.status(400).json({ message: "Instagram Token bulunamadı!" });
+    // Kontrol bloğu
+    if (!accessToken || !businessId) {
+      console.error("HATA: Render Environment kısmında Token veya ID eksik!");
+      return res.status(500).json({ message: "Sunucu ayarları eksik." });
     }
 
-// YENİ URL: Graph API (Facebook üzerinden)
+    // URL oluşturma (Hata burada çıkıyordu çünkü businessId yukarıda yoktu)
     const url = `https://graph.facebook.com/v18.0/${businessId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink&access_token=${accessToken}`;
     
     const response = await axios.get(url);
     
-    // Gelen veriyi işle
     const data = response.data.data.map(item => ({
       id: item.id,
-      // Eğer videoysa kapak resmini (thumbnail), değilse normal resmi al
       imageUrl: item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url, 
       permalink: item.permalink,
       caption: item.caption || ""
@@ -28,6 +29,7 @@ router.get('/', async (req, res) => {
     res.status(200).json(data);
 
   } catch (err) {
+    // Hatayı detaylı görelim
     console.error("Instagram Hatası:", err.response ? err.response.data : err.message);
     res.status(500).json({ message: "Instagram verisi çekilemedi." });
   }
