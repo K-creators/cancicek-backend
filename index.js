@@ -7,6 +7,7 @@ const cors = require('cors');
 const authRoute = require('./routes/auth');
 const productRoute = require('./routes/products');
 const orderRoute = require('./routes/orders'); // Sipariş rotası
+const instagramRoute = require('./routes/instagram');
 
 dotenv.config();
 const app = express();
@@ -22,6 +23,7 @@ mongoose.connect(process.env.MONGO_URL)
 // --- 2. AYARLAR (Middleware) ---
 app.use(cors()); // Mobil uygulamanın erişimine izin ver (Önemli!)
 app.use(express.json()); // Gelen verileri JSON olarak oku
+app.use("/api/instagram", instagramRoute);
 
 // --- 3. ROTALAR (Kapılar) ---
 // Giriş sistemi burada devreye giriyor:
