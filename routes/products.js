@@ -14,62 +14,69 @@ cloudinary.config({
 
 const upload = multer({ dest: 'uploads/' });
 
-// ÜRÜN EKLE (RESİMLİ)
-router.post("/", upload.single('image'), async (req, res) => {
+// 1. ÜRÜN DÜZENLEME (GÜNCELLEME)
+router.put("/:id", upload.single('image'), async (req, res) => {
   try {
-    let imageUrl = "";
-
-    // Eğer resim seçildiyse yükle
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "cancicek_products",
-        resource_type: "image"
-      });
-      imageUrl = result.secure_url;
-      fs.unlinkSync(req.file.path); // Geçici dosyayı sil
-    } else {
-        // Resim yoksa varsayılan veya boş gönder
-        imageUrl = req.body.imageUrl || "https://via.placeholder.com/150";
-    }
-
-    const newProduct = new Product({
+    const updateData = {
       title: req.body.title,
-      productCode: req.body.productCode, // YENİ
-      description: req.body.desc, // Modelde 'desc' diye bir alan yoksa burayı düzeltmiştim, dikkat et.
-      // Eğer model dosyanı benim 2. adımdaki gibi yaptıysan şuna dikkat:
-      // Modelde: desc dedik. Route'da da desc kaydedelim.
-      desc: req.body.desc, 
-      
+      productCode: req.body.productCode,
+      description: req.body.desc,
       price: req.body.price,
-      images: [imageUrl],
       category: req.body.category,
       deliveryScope: req.body.deliveryScope,
-      sortOrder: req.body.sortOrder || 0 // YENİ
-    });
+      sortOrder: req.body.sortOrder,
+      isActive: req.body.isActive // Pasif/Aktif güncellem
+    };
 
-    const savedProduct = await newProduct.save();
-    res.status(200).json(savedProduct);
+    // Eğer yeni resim varsa güncelle, yoksa eskisini elleme
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "cancicek_products", resource_type: "image"
+      });
+      updateData.images = [result.secure_url];
+      fs.unlinkSync(req.file.path);
+    }
 
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id, 
+      { $set: updateData }, 
+      { new: true }
+    );
+    res.status(200).json(updatedProduct);
   } catch (err) {
-    console.log(err);
     res.status(500).json(err);
   }
 });
 
-// TÜM ÜRÜNLERİ GETİR
+// 2. ÜRÜN SİLME
+router.delete("/:id", async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.status(200).json("Ürün silindi.");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+// 3. GET (Sadece Aktifleri veya Hepsini Getir)
+// Admin panelinde hepsi, Müşteri ekranında sadece aktifler görünmeli
 router.get("/", async (req, res) => {
   try {
-    let products;
+    let query = {};
     if (req.query.category) {
-      // Önce sortOrder'a göre (büyükten küçüğe), sonra tarihe göre sırala
-      products = await Product.find({ category: req.query.category })
-                              .sort({ sortOrder: -1, createdAt: -1 }); 
-    } else {
-      products = await Product.find().sort({ sortOrder: -1, createdAt: -1 });
+      query.category = req.query.category;
     }
+    
+    // Eğer "?admin=true" gönderilmezse sadece aktifleri göster
+    if (req.query.isAdmin !== "true") {
+      query.isActive = true; 
+    }
+
+    const products = await Product.find(query).sort({ sortOrder: -1, createdAt: -1 });
     res.status(200).json(products);
   } catch (err) {
     res.status(500).json(err);
   }
 });
+
 module.exports = router;

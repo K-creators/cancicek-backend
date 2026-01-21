@@ -1,14 +1,15 @@
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  productCode: { type: String, required: true, unique: true }, // YENİ: Ürün Kodu
-  desc: { type: String, required: true }, // (Frontend'den 'desc' geliyor, backend route'da description'a çeviriyoruz dikkat)
-  images: { type: Array },
-  price: { type: Number, required: true },
-  category: { type: String },
-  deliveryScope: { type: String },
-  sortOrder: { type: Number, default: 0 },
+    title: { type: String, required: true },
+    productCode: { type: String, required: true, unique: true },
+    desc: { type: String, required: true },
+    images: { type: Array },
+    price: { type: Number, required: true },
+    category: { type: String, default: "Genel" }, // Kategori silinirse buraya düşecek
+    deliveryScope: { type: String },
+    sortOrder: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
   
   // KRİTİK KURAL: Satış Kapsamı
   // 'corum_only' (Canlı çiçekler) veya 'all_turkey' (Oyuncak/Hediye)
