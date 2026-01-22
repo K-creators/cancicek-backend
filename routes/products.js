@@ -102,22 +102,31 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// 4. ÜRÜNLERİ GETİR (GET /api/products)
+// 4. ÜRÜNLERİ GETİR (ARAMA FİLTRESİ EKLENDİ)
 router.get("/", async (req, res) => {
   try {
     let query = {};
     
-    // Kategori filtresi varsa ekle
+    // 1. Kategori Filtresi
     if (req.query.category) {
       query.category = req.query.category;
     }
     
-    // Eğer Admin değilse sadece Aktifleri göster
+    // 2. ARAMA FİLTRESİ (YENİ!)
+    // Hem başlıkta (title) hem de ürün kodunda (productCode) arar.
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i'); // 'i' büyük/küçük harf duyarsız yapar
+      query.$or = [
+        { title: searchRegex },
+        { productCode: searchRegex }
+      ];
+    }
+    
+    // 3. Admin Filtresi
     if (req.query.isAdmin !== "true") {
       query.isActive = true; 
     }
 
-    // sortOrder'a göre sırala (Büyükten küçüğe)
     const products = await Product.find(query).sort({ sortOrder: -1, createdAt: -1 });
     res.status(200).json(products);
   } catch (err) {
