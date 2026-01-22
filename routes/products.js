@@ -14,38 +14,36 @@ cloudinary.config({
 // Geçici dosya tutucu
 const upload = multer({ dest: 'uploads/' });
 
-// 1. YENİ ÜRÜN EKLE (POST /api/products)
-router.post("/", upload.single('image'), async (req, res) => {
+// 1. YENİ ÜRÜN EKLE (ÇOKLU RESİM DESTEĞİ)
+// 'images' adında en fazla 5 resim kabul et
+router.post("/", upload.array('images', 5), async (req, res) => {
   try {
-    let imageUrl = "";
+    let imageUrls = [];
 
-    // Resim varsa Cloudinary'ye yükle
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "cancicek_products",
-        resource_type: "image"
-      });
-      imageUrl = result.secure_url;
-      // Geçici dosyayı sil
-      fs.unlinkSync(req.file.path);
+    // Eğer resimler varsa hepsini tek tek Cloudinary'ye yükle
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: "cancicek_products",
+          resource_type: "image"
+        });
+        imageUrls.push(result.secure_url);
+        fs.unlinkSync(file.path); // Yükledikten sonra sil
+      }
     } else {
-      imageUrl = "https://via.placeholder.com/150";
+      // Resim yoksa varsayılan bir tane koy
+      imageUrls.push("https://via.placeholder.com/300");
     }
 
     const newProduct = new Product({
       title: req.body.title,
-      productCode: req.body.productCode, // YENİ EKLENEN
-      description: req.body.desc,        // DİKKAT: Frontend 'desc' atıyor, Model 'desc' veya 'description' olabilir.
-      // Eğer model dosyan 'desc' ise burayı 'desc: req.body.desc' yap.
-      // Eğer model dosyan 'description' ise burayı 'description: req.body.desc' yap.
-      // Biz garanti olsun diye ikisini de eşitliyoruz (Model hangisini kabul ederse):
-      desc: req.body.desc, 
-      
+      productCode: req.body.productCode,
+      description: req.body.desc, // Frontend 'desc' gönderiyor
       price: req.body.price,
-      images: [imageUrl],
+      images: imageUrls, // Artık bir dizi (liste) kaydediyoruz
       category: req.body.category,
       deliveryScope: req.body.deliveryScope,
-      sortOrder: req.body.sortOrder || 0, // YENİ EKLENEN
+      sortOrder: req.body.sortOrder || 0,
       isActive: true
     });
 
@@ -58,14 +56,13 @@ router.post("/", upload.single('image'), async (req, res) => {
   }
 });
 
-// 2. ÜRÜN DÜZENLE (PUT /api/products/:id)
-router.put("/:id", upload.single('image'), async (req, res) => {
+// 2. ÜRÜN DÜZENLE (GÜNCELLEME)
+router.put("/:id", upload.array('images', 5), async (req, res) => {
   try {
     const updateData = {
       title: req.body.title,
       productCode: req.body.productCode,
-      desc: req.body.desc, // Model uyumu için
-      description: req.body.desc, // Model uyumu için
+      description: req.body.desc,
       price: req.body.price,
       category: req.body.category,
       deliveryScope: req.body.deliveryScope,
@@ -73,12 +70,17 @@ router.put("/:id", upload.single('image'), async (req, res) => {
       isActive: req.body.isActive
     };
 
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "cancicek_products", resource_type: "image"
-      });
-      updateData.images = [result.secure_url];
-      fs.unlinkSync(req.file.path);
+    // Yeni resimler geldiyse eskilerin üzerine yaz (Veya ekle, şu an üzerine yazıyoruz)
+    if (req.files && req.files.length > 0) {
+      let newUrls = [];
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: "cancicek_products", resource_type: "image"
+        });
+        newUrls.push(result.secure_url);
+        fs.unlinkSync(file.path);
+      }
+      updateData.images = newUrls;
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(
