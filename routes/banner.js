@@ -53,11 +53,26 @@ router.post('/', upload.single('image'), async (req, res) => {
   }
 });
 
-// 3. BANNER SİL
-router.delete('/:id', async (req, res) => {
+// 3. SİLME (YENİ)
+router.delete("/:id", async (req, res) => {
   try {
     await Banner.findByIdAndDelete(req.params.id);
     res.status(200).json("Banner silindi.");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+// 4. DURUM GÜNCELLEME (AKTİF/PASİF) (YENİ)
+router.put("/:id", async (req, res) => {
+  try {
+    // isActive bilgisini güncelle
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body }, // { isActive: false } gibi bir veri gelecek
+      { new: true }
+    );
+    res.status(200).json(updatedBanner);
   } catch (err) {
     res.status(500).json(err);
   }
