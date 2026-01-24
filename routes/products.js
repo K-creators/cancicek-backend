@@ -54,32 +54,44 @@ router.post("/", upload.array('images', 5), async (req, res) => {
   }
 });
 
-// 2. ÜRÜN DÜZENLE (GÜNCELLEME)
-router.put("/:id", upload.array('images', 5), async (req, res) => {
+// 2. ÜRÜN DÜZENLE (GÜNCELLEME - ESKİLERİ KORU + YENİ EKLE)
+router.put("/:id", upload.array('images', 10), async (req, res) => {
   try {
+    let finalImages = [];
+
+    // 1. Frontend'den gelen "Silinmemiş Eski Resimler" (JSON string olarak gelir)
+    if (req.body.existingImages) {
+      try {
+        finalImages = JSON.parse(req.body.existingImages);
+      } catch (e) {
+        // Eğer tek bir string gelirse diziye çevir
+        finalImages = [req.body.existingImages];
+      }
+    }
+
+    // 2. Yeni Yüklenen Dosyalar
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: "cancicek_products", resource_type: "image"
+        });
+        finalImages.push(result.secure_url); // Eskilerin üstüne ekle
+        fs.unlinkSync(file.path);
+      }
+    }
+
     const updateData = {
       title: req.body.title,
       productCode: req.body.productCode,
+      desc: req.body.desc, // Modeldeki isme dikkat (desc veya description)
       description: req.body.desc,
-      desc: req.body.desc,
       price: req.body.price,
+      images: finalImages, // BİRLEŞTİRİLMİŞ LİSTE
       category: req.body.category,
       deliveryScope: req.body.deliveryScope,
       sortOrder: req.body.sortOrder,
       isActive: req.body.isActive
     };
-
-    if (req.files && req.files.length > 0) {
-      let newUrls = [];
-      for (const file of req.files) {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "cancicek_products", resource_type: "image"
-        });
-        newUrls.push(result.secure_url);
-        fs.unlinkSync(file.path);
-      }
-      updateData.images = newUrls;
-    }
 
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id, 
@@ -88,6 +100,7 @@ router.put("/:id", upload.array('images', 5), async (req, res) => {
     );
     res.status(200).json(updatedProduct);
   } catch (err) {
+    console.log(err);
     res.status(500).json(err);
   }
 });
