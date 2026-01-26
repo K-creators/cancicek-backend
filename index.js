@@ -10,9 +10,11 @@ const orderRoute = require('./routes/orders'); // Sipariş rotası
 const instagramRoute = require('./routes/instagram');
 const bannerRoute = require('./routes/banner');
 const categoryRoute = require("./routes/category");
+const notificationRoutes = require('./routes/notifications');
 
 dotenv.config();
 const app = express();
+
 
 // --- 1. VERİTABANI BAĞLANTISI ---
 // (MongoDB bağlantı kodun aynen korundu)
@@ -36,6 +38,7 @@ app.use("/api/products", productRoute);
 // Sipariş verme sistemi:
 app.use("/api/orders", orderRoute);  
 app.use("/api/banners", bannerRoute);  
+app.use('/api/notifications', notificationRoutes);
 
 // Test için Ana Sayfa Rotası
 app.get('/', (req, res) => {
