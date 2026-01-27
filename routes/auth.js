@@ -112,10 +112,9 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// 5. PROFİL GÜNCELLEME (CLOUDINARY MODU)
+// 5. PROFİL GÜNCELLEME (Gelişmiş)
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
-    // Token Kontrolü
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ message: "Token yok." });
 
@@ -123,29 +122,76 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     const userId = decoded.id;
 
-    const { fullName, email, password } = req.body;
-    let updateData = { fullName, email };
+    // Mevcut kullanıcıyı bul
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
 
+    const { fullName, email, username, phone, password } = req.body;
+    let updateData = { fullName }; // İsim her zaman güncellenebilir
+
+    // --- KULLANICI ADI KONTROLLERİ ---
+    if (username && username !== user.username) {
+      // 1. Format Kontrolü (Regex: Harf, rakam, alt çizgi, 3-20 karakter)
+      const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+      if (!usernameRegex.test(username)) {
+        return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, sadece harf, rakam ve alt çizgi içerebilir." });
+      }
+
+      // 2. Benzersizlik Kontrolü
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
+      }
+
+      // 3. Tarih Kontrolü (Haftada 1 Kez)
+      if (user.lastUsernameChange) {
+        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 hafta milisaniye
+        const now = new Date().getTime();
+        const lastChange = new Date(user.lastUsernameChange).getTime();
+
+        if (now - lastChange < oneWeek) {
+          const daysLeft = Math.ceil((oneWeek - (now - lastChange)) / (1000 * 60 * 60 * 24));
+          return res.status(400).json({ message: `Kullanıcı adınızı değiştirmek için ${daysLeft} gün daha beklemelisiniz.` });
+        }
+      }
+
+      // Her şey uygunsa listeye ekle
+      updateData.username = username;
+      updateData.lastUsernameChange = new Date();
+    }
+    // ---------------------------------
+
+    // --- E-POSTA VE TELEFON (Basit Kontrol) ---
+    // Not: Gerçek SMS onayı için ayrı bir 'request-change' rotası gerekir.
+    // Şimdilik sadece benzersiz mi diye bakıp güncelliyoruz.
+    if (email && email !== user.email) {
+       const emailExists = await User.findOne({ email });
+       if (emailExists) return res.status(400).json({ message: "Bu e-posta kullanımda." });
+       updateData.email = email;
+    }
+
+    if (phone && phone !== user.phone) {
+       updateData.phone = phone;
+    }
+
+    // Şifre
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // --- CLOUDINARY KISMI ---
+    // Resim (Cloudinary)
     if (req.file) {
-      console.log("☁️ Resim Cloudinary'ye yüklendi:", req.file.path);
-      
-      // Cloudinary bize direkt HTTPS linki verir (req.file.path)
-      // Artık slash düzeltmeye gerek yok!
       updateData.profileImage = req.file.path; 
     }
-    // ------------------------
 
+    // Veritabanını Güncelle
     const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true }).select("-password");
+    
     res.status(200).json({ success: true, user: updatedUser });
 
   } catch (err) {
-    console.error("Cloudinary Yükleme Hatası:", err);
+    console.error("Güncelleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
 });
