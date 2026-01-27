@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   phone: { type: String, required: true }, // Doğrulama için gerekli
   password: { type: String, required: true },
+  profileImage: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false }, // Admin yetkisi
   addresses: [{ 
     title: String, 
