@@ -59,4 +59,31 @@ router.put('/admin/update-status/:id', async (req, res) => {
     }
 });
 
+// --- YENİ SİPARİŞ OLUŞTUR ---
+router.post('/create', async (req, res) => {
+    try {
+        const { userId, address, paymentMethod, items, totalPrice } = req.body;
+
+        // 1. Yeni Sipariş Oluştur
+        const newOrder = new Order({
+            user: userId,
+            address: address,
+            paymentMethod: paymentMethod, // 'credit_card' veya 'cod' (Cash on Delivery)
+            products: items,
+            totalPrice: totalPrice,
+            status: 'pending'
+        });
+
+        await newOrder.save();
+
+        // 2. Kullanıcının Sepetini Temizle (Opsiyonel ama önerilir)
+        // await Cart.findOneAndDelete({ user: userId }); 
+
+        res.status(200).json({ success: true, message: "Sipariş alındı!", orderId: newOrder._id });
+    } catch (error) {
+        console.error("Sipariş hatası:", error);
+        res.status(500).json({ success: false, error: "Sipariş oluşturulamadı." });
+    }
+});
+
 module.exports = router;
