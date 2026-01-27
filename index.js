@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path'); // --- 1. EKLENDİ: Dosya yolu işlemleri için ---
-
+const fs = require('fs');
 // Rota Dosyalarını Çağır
 const authRoute = require('./routes/auth');
 const productRoute = require('./routes/products');
@@ -15,6 +15,7 @@ const notificationRoutes = require('./routes/notifications');
 
 dotenv.config();
 const app = express();
+
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
   console.log("📂 'uploads' klasörü oluşturuldu.");
