@@ -33,4 +33,30 @@ router.get('/', async (req, res) => {
   }
 });
 
+// --- ADMIN: TÜM SİPARİŞLERİ GETİR ---
+router.get('/admin/all', async (req, res) => {
+    try {
+        // En yeniden en eskiye sırala
+        const orders = await Order.find().sort({ createdAt: -1 }).populate('user', 'name email');
+        res.status(200).json(orders);
+    } catch (error) {
+        res.status(500).json({ error: "Siparişler çekilemedi." });
+    }
+});
+
+// --- ADMIN: SİPARİŞ DURUMUNU GÜNCELLE ---
+router.put('/admin/update-status/:id', async (req, res) => {
+    try {
+        const { status } = req.body; // 'pending', 'shipped', 'delivered', 'cancelled'
+        const order = await Order.findByIdAndUpdate(
+            req.params.id, 
+            { status: status },
+            { new: true } // Güncellenmiş veriyi döndür
+        );
+        res.status(200).json(order);
+    } catch (error) {
+        res.status(500).json({ error: "Durum güncellenemedi." });
+    }
+});
+
 module.exports = router;
