@@ -15,7 +15,10 @@ const notificationRoutes = require('./routes/notifications');
 
 dotenv.config();
 const app = express();
-
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+  console.log("📂 'uploads' klasörü oluşturuldu.");
+}
 // --- 1. VERİTABANI BAĞLANTISI ---
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("✅ Veritabanı bağlantısı BAŞARILI!"))
