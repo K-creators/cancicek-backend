@@ -1,4 +1,3 @@
-// routes/auth.js
 const router = require('express').Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
@@ -35,11 +34,10 @@ router.post('/register', async (req, res) => {
 
     await newUser.save();
 
-    // --- BURASI KRİTİK: SMS SİMÜLASYONU ---
+    // --- SMS SİMÜLASYONU ---
     console.log(`==========================================`);
     console.log(`TELEFONA GİDEN SMS KODU: ${otpCode}`);
     console.log(`==========================================`);
-    // İlerde buraya Netgsm veya Twilio kodu gelecek.
 
     res.status(201).json({ message: "Kayıt başarılı! Lütfen telefona gelen kodu girin.", userId: newUser._id });
 
@@ -106,6 +104,72 @@ router.post('/login', async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// --- YENİ EKLENEN KISIMLAR (PROFİL İÇİN) ---
+// ============================================================
+
+// 4. KULLANICI BİLGİSİNİ GETİR (/me)
+router.get('/me', async (req, res) => {
+  try {
+    // 1. Token'ı al
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
+    
+    const token = authHeader.split(" ")[1];
+    
+    // 2. Doğrula
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // 3. Kullanıcıyı bul (Şifre hariç)
+    const user = await User.findById(decoded.id).select("-password");
+    
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(401).json({ message: "Geçersiz token." });
+  }
+});
+
+// 5. PROFİL GÜNCELLEME (/updateDetails)
+router.put('/updateDetails', async (req, res) => {
+  try {
+    // 1. Token Kontrolü
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    // 2. Gelen Verileri Al
+    const { fullName, email, password } = req.body;
+
+    // Güncellenecek objeyi hazırla
+    let updateData = {
+      fullName: fullName,
+      email: email
+    };
+
+    // Eğer şifre de geldiyse hashleyip ekle
+    if (password && password.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    // 3. Veritabanında Güncelle
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true } // Güncel halini döndür
+    ).select("-password"); // Şifreyi geri döndürme
+
+    res.status(200).json({ success: true, user: updatedUser });
+
+  } catch (err) {
+    console.error("Güncelleme Hatası:", err);
+    res.status(500).json({ error: "Güncelleme sırasında hata oluştu." });
   }
 });
 
