@@ -145,12 +145,13 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
 
       // 3. Tarih Kontrolü (Haftada 1 Kez)
       if (user.lastUsernameChange) {
-        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 hafta (ms)
+        const oneWeek = 7 * 24 * 60 * 60 * 1000;
         const now = new Date().getTime();
         const lastChange = new Date(user.lastUsernameChange).getTime();
 
         if (now - lastChange < oneWeek) {
           const daysLeft = Math.ceil((oneWeek - (now - lastChange)) / (1000 * 60 * 60 * 24));
+          // BU SATIR ÖNEMLİ: status(400) ve json({ message: ... }) dönmeli
           return res.status(400).json({ message: `Kullanıcı adınızı değiştirmek için ${daysLeft} gün daha beklemelisiniz.` });
         }
       }
