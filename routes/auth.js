@@ -2,19 +2,31 @@ const router = require('express').Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const multer = require('multer'); // EKLENDİ
-const path = require('path');     // EKLENDİ
 
-// --- MULTER AYARLARI (RESİM YÜKLEME İÇİN) ---
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Resimleri 'uploads' klasörüne kaydet
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Benzersiz isim ver
-  }
+// --- CLOUDINARY AYARLARI (YENİ) ---
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
+
+// 1. Cloudinary Girişi
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+// 2. Depolama Ayarı (Resim nereye, nasıl yüklenecek?)
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'cancicek_avatars', // Cloudinary'de bu klasöre kaydeder
+    allowed_formats: ['jpg', 'png', 'jpeg'], // İzin verilen formatlar
+    public_id: (req, file) => 'user_' + Date.now(), // Dosya ismi
+  },
+});
+
 const upload = multer({ storage: storage });
+// ----------------------------------
 
 // 1. KAYIT OLMA (REGISTER)
 router.post('/register', async (req, res) => {
@@ -42,7 +54,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 2. SMS DOĞRULAMA (VERIFY OTP)
+// 2. SMS DOĞRULAMA
 router.post('/verify-otp', async (req, res) => {
   try {
     const { userId, code } = req.body;
@@ -65,7 +77,7 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// 3. GİRİŞ YAP (LOGIN)
+// 3. GİRİŞ YAP
 router.post('/login', async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
@@ -100,40 +112,40 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// 5. PROFİL GÜNCELLEME (RESİMLİ - DÜZELTİLDİ)
-// 'upload.single("photo")' middleware'i sayesinde artık req.body DOLU gelecek!
+// 5. PROFİL GÜNCELLEME (CLOUDINARY MODU)
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
     // Token Kontrolü
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return res.status(401).json({ message: "Token yok." });
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
 
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     const userId = decoded.id;
 
-    // --- ARTIK req.body BOŞ GELMEYECEK ---
     const { fullName, email, password } = req.body;
-
     let updateData = { fullName, email };
 
-    // Şifre varsa hashle
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // Resim varsa kaydet
+    // --- CLOUDINARY KISMI ---
     if (req.file) {
-      // Not: 'uploads' klasörünü static yapmazsan resim görünmez.
-      // Şimdilik sadece yolunu kaydediyoruz.
+      console.log("☁️ Resim Cloudinary'ye yüklendi:", req.file.path);
+      
+      // Cloudinary bize direkt HTTPS linki verir (req.file.path)
+      // Artık slash düzeltmeye gerek yok!
       updateData.profileImage = req.file.path; 
     }
+    // ------------------------
 
     const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true }).select("-password");
     res.status(200).json({ success: true, user: updatedUser });
 
   } catch (err) {
-    console.error("Güncelleme Hatası:", err);
+    console.error("Cloudinary Yükleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
 });
