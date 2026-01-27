@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const path = require('path'); // --- 1. EKLENDİ: Dosya yolu işlemleri için ---
 
 // Rota Dosyalarını Çağır
 const authRoute = require('./routes/auth');
@@ -15,9 +16,7 @@ const notificationRoutes = require('./routes/notifications');
 dotenv.config();
 const app = express();
 
-
 // --- 1. VERİTABANI BAĞLANTISI ---
-// (MongoDB bağlantı kodun aynen korundu)
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("✅ Veritabanı bağlantısı BAŞARILI!"))
   .catch((err) => {
@@ -25,17 +24,20 @@ mongoose.connect(process.env.MONGO_URL)
   });
 
 // --- 2. AYARLAR (Middleware) ---
-app.use(cors()); // Mobil uygulamanın erişimine izin ver (Önemli!)
+app.use(cors()); // Mobil uygulamanın erişimine izin ver
 app.use(express.json()); // Gelen verileri JSON olarak oku
+
+// --- 2.1 RESİMLERİ PAYLAŞIMA AÇ (ÇOK ÖNEMLİ) ---
+// Bu satır sayesinde 'uploads' klasöründeki dosyalar internetten erişilebilir olur.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
+// ------------------------------------------------
+
 app.use("/api/instagram", instagramRoute);
 app.use("/api/categories", categoryRoute);
 
 // --- 3. ROTALAR (Kapılar) ---
-// Giriş sistemi burada devreye giriyor:
 app.use("/api/auth", authRoute);       
-// Ürünleri çekme sistemi:
 app.use("/api/products", productRoute); 
-// Sipariş verme sistemi:
 app.use("/api/orders", orderRoute);  
 app.use("/api/banners", bannerRoute);  
 app.use('/api/notifications', notificationRoutes);
@@ -45,8 +47,7 @@ app.get('/', (req, res) => {
   res.send('Can Çiçek Sunucusu Yayında! 🌸');
 });
 
-// --- 4. HATA YAKALAMA (YENİ EKLENDİ) ---
-// Eğer kodun bir yerinde hata olursa sunucu çökmesin, bu mesajı versin.
+// --- 4. HATA YAKALAMA ---
 app.use((err, req, res, next) => {
   console.error("🔥 Sunucu Hatası:", err.stack);
   res.status(500).json({ 
@@ -61,7 +62,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Sunucu çalışıyor: http://localhost:${PORT}`);
   
-  // Bilgisayarın IP adresini konsola yazdıralım
   const { networkInterfaces } = require('os');
   const nets = networkInterfaces();
   for (const name of Object.keys(nets)) {
