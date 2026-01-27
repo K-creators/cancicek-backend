@@ -168,8 +168,10 @@ router.put('/updateDetails', async (req, res) => {
     res.status(200).json({ success: true, user: updatedUser });
 
   } catch (err) {
-    console.error("Güncelleme Hatası:", err);
-    res.status(500).json({ error: "Güncelleme sırasında hata oluştu." });
+    console.error("TAM HATA DETAYI:", err); // Bunu backend terminalinde görmek için
+    
+    // Flutter'a hatanın kendisini gönderiyoruz:
+    res.status(500).json({ error: err.message }); 
   }
 });
 
