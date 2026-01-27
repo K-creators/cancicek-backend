@@ -112,7 +112,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// 5. PROFİL GÜNCELLEME (Gelişmiş)
+// 5. PROFİL GÜNCELLEME (Gelişmiş Kurallı)
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -127,14 +127,14 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     if (!user) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
 
     const { fullName, email, username, phone, password } = req.body;
-    let updateData = { fullName }; // İsim her zaman güncellenebilir
+    let updateData = { fullName }; 
 
     // --- KULLANICI ADI KONTROLLERİ ---
     if (username && username !== user.username) {
-      // 1. Format Kontrolü (Regex: Harf, rakam, alt çizgi, 3-20 karakter)
+      // 1. Format Kontrolü (3-20 karakter, özel karakter yok)
       const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
       if (!usernameRegex.test(username)) {
-        return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, sadece harf, rakam ve alt çizgi içerebilir." });
+        return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, Türkçe karakter veya boşluk içermemeli." });
       }
 
       // 2. Benzersizlik Kontrolü
@@ -145,7 +145,7 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
 
       // 3. Tarih Kontrolü (Haftada 1 Kez)
       if (user.lastUsernameChange) {
-        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 hafta milisaniye
+        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 hafta (ms)
         const now = new Date().getTime();
         const lastChange = new Date(user.lastUsernameChange).getTime();
 
@@ -155,24 +155,15 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
         }
       }
 
-      // Her şey uygunsa listeye ekle
+      // Onaylanırsa güncelle ve tarihi kaydet
       updateData.username = username;
       updateData.lastUsernameChange = new Date();
     }
     // ---------------------------------
 
-    // --- E-POSTA VE TELEFON (Basit Kontrol) ---
-    // Not: Gerçek SMS onayı için ayrı bir 'request-change' rotası gerekir.
-    // Şimdilik sadece benzersiz mi diye bakıp güncelliyoruz.
-    if (email && email !== user.email) {
-       const emailExists = await User.findOne({ email });
-       if (emailExists) return res.status(400).json({ message: "Bu e-posta kullanımda." });
-       updateData.email = email;
-    }
-
-    if (phone && phone !== user.phone) {
-       updateData.phone = phone;
-    }
+    // Telefon ve Email güncelleme (Şimdilik direkt günceller, SMS onayı ayrı modül gerektirir)
+    if (email && email !== user.email) updateData.email = email;
+    if (phone && phone !== user.phone) updateData.phone = phone;
 
     // Şifre
     if (password && password.trim() !== "") {
@@ -185,7 +176,6 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
       updateData.profileImage = req.file.path; 
     }
 
-    // Veritabanını Güncelle
     const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true }).select("-password");
     
     res.status(200).json({ success: true, user: updatedUser });

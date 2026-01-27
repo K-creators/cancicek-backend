@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
   {
@@ -11,7 +11,6 @@ const UserSchema = new mongoose.Schema(
     
     // --- YENİ: KULLANICI ADI DEĞİŞTİRME TARİHİ ---
     lastUsernameChange: { type: Date, default: null },
-    // ----------------------------------------------
 
     isAdmin: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
@@ -34,6 +33,4 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.
-
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model("User", UserSchema);
