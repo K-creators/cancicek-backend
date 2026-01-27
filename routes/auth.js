@@ -3,38 +3,62 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// --- CLOUDINARY AYARLARI (YENİ) ---
+// --- CLOUDINARY AYARLARI ---
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-// 1. Cloudinary Girişi
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 2. Depolama Ayarı (Resim nereye, nasıl yüklenecek?)
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'cancicek_avatars', // Cloudinary'de bu klasöre kaydeder
-    allowed_formats: ['jpg', 'png', 'jpeg'], // İzin verilen formatlar
-    public_id: (req, file) => 'user_' + Date.now(), // Dosya ismi
+    folder: 'cancicek_avatars',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+    public_id: (req, file) => 'user_' + Date.now(),
   },
 });
 
 const upload = multer({ storage: storage });
-// ----------------------------------
 
-// 1. KAYIT OLMA (REGISTER)
+// --- YARDIMCI FONKSİYON: Kullanıcı Adı Kontrolü ---
+const validateUsername = (username) => {
+  // 3-20 karakter, sadece ingilizce harf, rakam ve alt çizgi
+  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+  return usernameRegex.test(username);
+};
+
+// ============================================================
+// 1. KAYIT OLMA (REGISTER) - GÜNCELLENDİ
+// ============================================================
 router.post('/register', async (req, res) => {
   try {
     const { fullName, username, email, phone, password } = req.body;
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) return res.status(400).json({ message: "Bu e-posta veya kullanıcı adı zaten kayıtlı." });
 
+    // 1. Kullanıcı Adı Format Kontrolü
+    if (!validateUsername(username)) {
+      return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, Türkçe karakter veya boşluk içermemeli." });
+    }
+
+    // 2. Benzersizlik Kontrolleri (Sırayla kontrol edip net mesaj verelim)
+    
+    // A) Kullanıcı Adı Müsait mi?
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
+
+    // B) E-posta Müsait mi?
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı." });
+
+    // C) Telefon Müsait mi?
+    const existingPhone = await User.findOne({ phone });
+    if (existingPhone) return res.status(400).json({ message: "Bu telefon numarası zaten kayıtlı." });
+
+    // 3. Şifreleme ve Kayıt
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -43,7 +67,8 @@ router.post('/register', async (req, res) => {
 
     const newUser = new User({
       fullName, username, email, phone, password: hashedPassword,
-      otp: otpCode, otpExpires: otpExpiry, isVerified: false
+      otp: otpCode, otpExpires: otpExpiry, isVerified: false,
+      lastUsernameChange: new Date() // Kayıt tarihi başlangıç kabul edilir
     });
 
     await newUser.save();
@@ -54,7 +79,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 2. SMS DOĞRULAMA
+// ============================================================
+// 2. SMS DOĞRULAMA (AYNI)
+// ============================================================
 router.post('/verify-otp', async (req, res) => {
   try {
     const { userId, code } = req.body;
@@ -77,7 +104,9 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// 3. GİRİŞ YAP
+// ============================================================
+// 3. GİRİŞ YAP (AYNI)
+// ============================================================
 router.post('/login', async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
@@ -98,7 +127,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 4. PROFİL BİLGİSİ (/me)
+// ============================================================
+// 4. PROFİL BİLGİSİ (/me) (AYNI)
+// ============================================================
 router.get('/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -112,7 +143,9 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// 5. PROFİL GÜNCELLEME (Gelişmiş Kurallı)
+// ============================================================
+// 5. PROFİL GÜNCELLEME (TAM GÜVENLİKLİ)
+// ============================================================
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -129,19 +162,16 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     const { fullName, email, username, phone, password } = req.body;
     let updateData = { fullName }; 
 
-    // --- KULLANICI ADI KONTROLLERİ ---
+    // --- A) KULLANICI ADI DEĞİŞİKLİĞİ ---
     if (username && username !== user.username) {
-      // 1. Format Kontrolü (3-20 karakter, özel karakter yok)
-      const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
-      if (!usernameRegex.test(username)) {
-        return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, Türkçe karakter veya boşluk içermemeli." });
+      // 1. Format Kontrolü
+      if (!validateUsername(username)) {
+        return res.status(400).json({ message: "Kullanıcı adı formatı hatalı (Sadece harf, rakam, _)." });
       }
 
       // 2. Benzersizlik Kontrolü
       const existingUser = await User.findOne({ username });
-      if (existingUser) {
-        return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
-      }
+      if (existingUser) return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
 
       // 3. Tarih Kontrolü (Haftada 1 Kez)
       if (user.lastUsernameChange) {
@@ -151,28 +181,40 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
 
         if (now - lastChange < oneWeek) {
           const daysLeft = Math.ceil((oneWeek - (now - lastChange)) / (1000 * 60 * 60 * 24));
-          // BU SATIR ÖNEMLİ: status(400) ve json({ message: ... }) dönmeli
           return res.status(400).json({ message: `Kullanıcı adınızı değiştirmek için ${daysLeft} gün daha beklemelisiniz.` });
         }
       }
 
-      // Onaylanırsa güncelle ve tarihi kaydet
       updateData.username = username;
       updateData.lastUsernameChange = new Date();
     }
-    // ---------------------------------
 
-    // Telefon ve Email güncelleme (Şimdilik direkt günceller, SMS onayı ayrı modül gerektirir)
-    if (email && email !== user.email) updateData.email = email;
-    if (phone && phone !== user.phone) updateData.phone = phone;
+    // --- B) E-POSTA DEĞİŞİKLİĞİ VE KONTROLÜ ---
+    if (email && email !== user.email) {
+       // Başkası kullanıyor mu?
+       const emailExists = await User.findOne({ email });
+       if (emailExists) return res.status(400).json({ message: "Bu e-posta başkası tarafından kullanılıyor." });
+       
+       updateData.email = email;
+    }
 
+    // --- C) TELEFON DEĞİŞİKLİĞİ VE KONTROLÜ ---
+    if (phone && phone !== user.phone) {
+       // Başkası kullanıyor mu?
+       const phoneExists = await User.findOne({ phone });
+       if (phoneExists) return res.status(400).json({ message: "Bu telefon numarası başkası tarafından kullanılıyor." });
+       
+       updateData.phone = phone;
+    }
+
+    // --- D) DİĞER İŞLEMLER ---
     // Şifre
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // Resim (Cloudinary)
+    // Resim
     if (req.file) {
       updateData.profileImage = req.file.path; 
     }
