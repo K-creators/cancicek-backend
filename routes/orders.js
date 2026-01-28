@@ -1,10 +1,14 @@
 const router = require('express').Router();
 const Order = require('../models/Order');
+const User = require('../models/User'); // EKLENDİ: Adres güncelleme için gerekli
+const jwt = require('jsonwebtoken');    // EKLENDİ: Token çözmek için gerekli
 
-// SİPARİŞ OLUŞTURMA
+// ============================================================
+// 1. SİPARİŞ OLUŞTURMA (Token ile Güvenli Yöntem)
+// ============================================================
 router.post("/", async (req, res) => {
   try {
-    // 1. TOKEN KONTROLÜ VE USER ID ALMA (EN GÜVENLİ YOL)
+    // 1. TOKEN KONTROLÜ VE USER ID ALMA
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ success: false, error: "Oturum açmanız gerekiyor (Token yok)." });
@@ -18,7 +22,7 @@ router.post("/", async (req, res) => {
        return res.status(403).json({ success: false, error: "Geçersiz oturum anahtarı." });
     }
 
-    const userIdFromToken = decoded.id; // İşte userId'yi buradan garantili alıyoruz!
+    const userIdFromToken = decoded.id; // UserId'yi Token'dan alıyoruz
 
     // -----------------------------------------------------
 
@@ -28,7 +32,7 @@ router.post("/", async (req, res) => {
     console.log("👤 Sipariş Veren User ID:", userIdFromToken);
 
     const newOrder = new Order({
-      userId: userIdFromToken, // req.body.userId yerine Token'dan gelen ID'yi kullanıyoruz
+      userId: userIdFromToken, // Token'dan gelen güvenli ID
       address, 
       paymentMethod,
       totalPrice,
@@ -41,7 +45,7 @@ router.post("/", async (req, res) => {
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("❌ PATLADI:", err);
+    console.error("❌ SİPARİŞ HATASI:", err);
     res.status(500).json({ 
       success: false, 
       error: "Sunucu Hatası: " + err.message,
@@ -49,7 +53,10 @@ router.post("/", async (req, res) => {
     });
   }
 });
+
+// ============================================================
 // 2. KULLANICININ SİPARİŞLERİNİ GETİR
+// ============================================================
 router.get('/find/:userId', async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.params.userId });
@@ -59,7 +66,9 @@ router.get('/find/:userId', async (req, res) => {
   }
 });
 
+// ============================================================
 // 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
+// ============================================================
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find();
@@ -69,10 +78,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// --- ADMIN: TÜM SİPARİŞLERİ GETİR ---
+// --- ADMIN: TÜM SİPARİŞLERİ GETİR (Detaylı) ---
 router.get('/admin/all', async (req, res) => {
     try {
-        // En yeniden en eskiye sırala
         const orders = await Order.find().sort({ createdAt: -1 }).populate('user', 'name email');
         res.status(200).json(orders);
     } catch (error) {
@@ -83,11 +91,11 @@ router.get('/admin/all', async (req, res) => {
 // --- ADMIN: SİPARİŞ DURUMUNU GÜNCELLE ---
 router.put('/admin/update-status/:id', async (req, res) => {
     try {
-        const { status } = req.body; // 'pending', 'shipped', 'delivered', 'cancelled'
+        const { status } = req.body;
         const order = await Order.findByIdAndUpdate(
             req.params.id, 
             { status: status },
-            { new: true } // Güncellenmiş veriyi döndür
+            { new: true }
         );
         res.status(200).json(order);
     } catch (error) {
@@ -95,34 +103,9 @@ router.put('/admin/update-status/:id', async (req, res) => {
     }
 });
 
-// --- YENİ SİPARİŞ OLUŞTUR ---
-router.post('/create', async (req, res) => {
-    try {
-        const { userId, address, paymentMethod, items, totalPrice } = req.body;
-
-        // 1. Yeni Sipariş Oluştur
-        const newOrder = new Order({
-            user: userId,
-            address: address,
-            paymentMethod: paymentMethod, // 'credit_card' veya 'cod' (Cash on Delivery)
-            products: items,
-            totalPrice: totalPrice,
-            status: 'pending'
-        });
-
-        await newOrder.save();
-
-        // 2. Kullanıcının Sepetini Temizle (Opsiyonel ama önerilir)
-        // await Cart.findOneAndDelete({ user: userId }); 
-
-        res.status(200).json({ success: true, message: "Sipariş alındı!", orderId: newOrder._id });
-    } catch (error) {
-        console.error("Sipariş hatası:", error);
-        res.status(500).json({ success: false, error: "Sipariş oluşturulamadı." });
-    }
-});
-
-// 7. ADRES GÜNCELLEME (YENİ)
+// ============================================================
+// 4. ADRES GÜNCELLEME (User Modeli Gerekli)
+// ============================================================
 router.put('/update-address', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -135,8 +118,6 @@ router.put('/update-address', async (req, res) => {
     // Güncellenecek veriler
     const { id, title, address, city, district, neighborhood, receiverName, phone } = req.body;
 
-    // MongoDB'de dizi içindeki (array) belirli bir elemanı güncellemek için
-    // "addresses.id": id ile bulup, "$" operatörü ile güncelliyoruz.
     const user = await User.findOneAndUpdate(
       { _id: userId, "addresses.id": id },
       {
@@ -145,12 +126,12 @@ router.put('/update-address', async (req, res) => {
           "addresses.$.address": address,
           "addresses.$.city": city,
           "addresses.$.district": district,
-          "addresses.$.neighborhood": neighborhood, // Mahalle
-          "addresses.$.receiverName": receiverName, // YENİ
-          "addresses.$.phone": phone                // YENİ
+          "addresses.$.neighborhood": neighborhood,
+          "addresses.$.receiverName": receiverName,
+          "addresses.$.phone": phone
         }
       },
-      { new: true } // Güncel veriyi döndür
+      { new: true }
     );
 
     if (!user) {
