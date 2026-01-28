@@ -1,12 +1,14 @@
 const router = require('express').Router();
 const Order = require('../models/Order');
-const User = require('../models/User'); // EKLENDİ: Adres güncelleme için gerekli
-const jwt = require('jsonwebtoken');    // EKLENDİ: Token çözmek için gerekli
+const User = require('../models/User'); 
+const jwt = require('jsonwebtoken');
 
 // ============================================================
-// 1. SİPARİŞ OLUŞTURMA (Token ile Güvenli Yöntem)
+// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA MANTIĞI
 // ============================================================
-router.post("/", async (req, res) => {
+// Hem '/' hem de '/create' rotası bu fonksiyonu kullanacak.
+// Böylece Flutter hangisine giderse gitsin çalışacak.
+const createOrderHandler = async (req, res) => {
   try {
     // 1. TOKEN KONTROLÜ VE USER ID ALMA
     const authHeader = req.headers.authorization;
@@ -22,7 +24,7 @@ router.post("/", async (req, res) => {
        return res.status(403).json({ success: false, error: "Geçersiz oturum anahtarı." });
     }
 
-    const userIdFromToken = decoded.id; // UserId'yi Token'dan alıyoruz
+    const userIdFromToken = decoded.id; 
 
     // -----------------------------------------------------
 
@@ -31,9 +33,10 @@ router.post("/", async (req, res) => {
     console.log("📥 Gelen Adres:", JSON.stringify(address));
     console.log("👤 Sipariş Veren User ID:", userIdFromToken);
 
+    // Yeni Sipariş Oluştur
     const newOrder = new Order({
-      userId: userIdFromToken, // Token'dan gelen güvenli ID
-      address, 
+      userId: userIdFromToken, // Token'dan gelen ID
+      address,                 // Esnek adres yapısı
       paymentMethod,
       totalPrice,
       items,
@@ -52,14 +55,20 @@ router.post("/", async (req, res) => {
       details: err 
     });
   }
-});
+};
+
+// ============================================================
+// 1. SİPARİŞ OLUŞTURMA ROTALARI (İkisi de aynı yere çıkar)
+// ============================================================
+router.post("/", createOrderHandler);       // Eski yol
+router.post("/create", createOrderHandler); // Flutter'ın şu an denediği yol (Hata buradaydı)
 
 // ============================================================
 // 2. KULLANICININ SİPARİŞLERİNİ GETİR
 // ============================================================
 router.get('/find/:userId', async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.params.userId });
+    const orders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json(err);
@@ -71,7 +80,7 @@ router.get('/find/:userId', async (req, res) => {
 // ============================================================
 router.get('/', async (req, res) => {
   try {
-    const orders = await Order.find();
+    const orders = await Order.find().sort({ createdAt: -1 });
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json(err);
@@ -81,7 +90,7 @@ router.get('/', async (req, res) => {
 // --- ADMIN: TÜM SİPARİŞLERİ GETİR (Detaylı) ---
 router.get('/admin/all', async (req, res) => {
     try {
-        const orders = await Order.find().sort({ createdAt: -1 }).populate('user', 'name email');
+        const orders = await Order.find().sort({ createdAt: -1 });
         res.status(200).json(orders);
     } catch (error) {
         res.status(500).json({ error: "Siparişler çekilemedi." });
@@ -104,7 +113,7 @@ router.put('/admin/update-status/:id', async (req, res) => {
 });
 
 // ============================================================
-// 4. ADRES GÜNCELLEME (User Modeli Gerekli)
+// 4. ADRES GÜNCELLEME
 // ============================================================
 router.put('/update-address', async (req, res) => {
   try {
@@ -115,7 +124,6 @@ router.put('/update-address', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     const userId = decoded.id;
 
-    // Güncellenecek veriler
     const { id, title, address, city, district, neighborhood, receiverName, phone } = req.body;
 
     const user = await User.findOneAndUpdate(
