@@ -4,40 +4,45 @@ const Order = require('../models/Order');
 // SİPARİŞ OLUŞTURMA
 router.post("/", async (req, res) => {
   try {
-    // Frontend'den gelen verileri al
     const { userId, address, paymentMethod, totalPrice, items } = req.body;
 
-    // Adres Kontrolü (String mi Obje mi?)
+    console.log("📥 Gelen Adres Verisi:", address); // Loglayalım
+
+    // --- KRİTİK DÜZELTME: ADRES FORMATLAMA ---
+    // Eğer Frontend adresi sadece "String" (Yazı) olarak gönderdiyse;
+    // Bunu veritabanının kabul edeceği bir Obje'ye çeviriyoruz.
     let finalAddress = {};
-    
+
     if (typeof address === 'string') {
-      // Eğer eski usul sadece yazı geldiyse
       finalAddress = {
-        title: "Kayıtlı Adres",
-        address: address,
-        city: "",
-        receiverName: "Kullanıcı", // Varsayılan
-        phone: ""
+        title: "Teslimat Adresi",
+        address: address,         // Gelen yazıyı buraya koyuyoruz
+        city: "Belirtilmedi",
+        receiverName: "Alıcı",    // Varsayılan
+        phone: ""                 // Varsayılan
       };
     } else {
-      // Eğer detaylı obje geldiyse direkt al
+      // Eğer zaten obje olarak geldiyse (Yeni versiyon)
       finalAddress = address;
     }
+    // ------------------------------------------
 
     const newOrder = new Order({
       userId,
-      address: finalAddress, // Düzenlenmiş adresi kaydet
+      address: finalAddress, // Artık her zaman Obje formatında
       paymentMethod,
       totalPrice,
       items,
     });
 
     const savedOrder = await newOrder.save();
+    console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
+    
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("Sipariş Hatası:", err); // Hatayı terminale yazdır ki görelim
-    // Detaylı hatayı frontend'e gönder
+    console.error("❌ Sipariş Hatası:", err);
+    // Hatanın detayını frontend'e gönderiyoruz ki görebilelim
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -113,6 +118,49 @@ router.post('/create', async (req, res) => {
         console.error("Sipariş hatası:", error);
         res.status(500).json({ success: false, error: "Sipariş oluşturulamadı." });
     }
+});
+
+// 7. ADRES GÜNCELLEME (YENİ)
+router.put('/update-address', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
+    const userId = decoded.id;
+
+    // Güncellenecek veriler
+    const { id, title, address, city, district, neighborhood, receiverName, phone } = req.body;
+
+    // MongoDB'de dizi içindeki (array) belirli bir elemanı güncellemek için
+    // "addresses.id": id ile bulup, "$" operatörü ile güncelliyoruz.
+    const user = await User.findOneAndUpdate(
+      { _id: userId, "addresses.id": id },
+      {
+        $set: {
+          "addresses.$.title": title,
+          "addresses.$.address": address,
+          "addresses.$.city": city,
+          "addresses.$.district": district,
+          "addresses.$.neighborhood": neighborhood, // Mahalle
+          "addresses.$.receiverName": receiverName, // YENİ
+          "addresses.$.phone": phone                // YENİ
+        }
+      },
+      { new: true } // Güncel veriyi döndür
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "Adres bulunamadı." });
+    }
+
+    res.status(200).json({ success: true, user });
+
+  } catch (err) {
+    console.error("Adres Güncelleme Hatası:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
