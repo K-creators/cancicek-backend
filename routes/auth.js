@@ -229,4 +229,40 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   }
 });
 
+// 6. ADRES EKLEME (YENİ VE DETAYLI)
+router.post('/add-address', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
+    const userId = decoded.id;
+
+    const { title, address, city, receiverName, phone } = req.body;
+
+    // Basit Validasyon
+    if (!title || !address || !receiverName || !phone) {
+      return res.status(400).json({ message: "Lütfen başlık, adres, alıcı adı ve telefonu giriniz." });
+    }
+
+    const newAddress = {
+      title,
+      address,
+      city: city || "",
+      receiverName, // Yeni
+      phone,        // Yeni
+      id: new Date().getTime().toString() // Basit bir ID
+    };
+
+    const user = await User.findById(userId);
+    user.addresses.push(newAddress);
+    await user.save();
+
+    res.status(200).json({ success: true, user });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;
