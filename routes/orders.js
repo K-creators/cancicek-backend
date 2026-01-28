@@ -4,16 +4,13 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 // ============================================================
-// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA MANTIĞI
+// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA
 // ============================================================
-// Hem '/' hem de '/create' rotası bu fonksiyonu kullanacak.
-// Böylece Flutter hangisine giderse gitsin çalışacak.
 const createOrderHandler = async (req, res) => {
   try {
-    // 1. TOKEN KONTROLÜ VE USER ID ALMA
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ success: false, error: "Oturum açmanız gerekiyor (Token yok)." });
+      return res.status(401).json({ success: false, error: "Oturum açmanız gerekiyor." });
     }
 
     const token = authHeader.split(" ")[1];
@@ -21,22 +18,19 @@ const createOrderHandler = async (req, res) => {
     try {
        decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     } catch (err) {
-       return res.status(403).json({ success: false, error: "Geçersiz oturum anahtarı." });
+       return res.status(403).json({ success: false, error: "Geçersiz oturum." });
     }
 
     const userIdFromToken = decoded.id; 
 
-    // -----------------------------------------------------
-
     const { address, paymentMethod, totalPrice, items } = req.body;
 
     console.log("📥 Gelen Adres:", JSON.stringify(address));
-    console.log("👤 Sipariş Veren User ID:", userIdFromToken);
+    console.log("👤 User ID:", userIdFromToken);
 
-    // Yeni Sipariş Oluştur
     const newOrder = new Order({
-      userId: userIdFromToken, // Token'dan gelen ID
-      address,                 // Esnek adres yapısı
+      userId: userIdFromToken,
+      address,
       paymentMethod,
       totalPrice,
       items,
@@ -58,39 +52,50 @@ const createOrderHandler = async (req, res) => {
 };
 
 // ============================================================
-// 1. SİPARİŞ OLUŞTURMA ROTALARI (İkisi de aynı yere çıkar)
+// ROTALAR
 // ============================================================
-router.post("/", createOrderHandler);       // Eski yol
-router.post("/create", createOrderHandler); // Flutter'ın şu an denediği yol (Hata buradaydı)
+router.post("/", createOrderHandler);
+router.post("/create", createOrderHandler);
 
 // ============================================================
-// 2. KULLANICININ SİPARİŞLERİNİ GETİR
+// 2. KULLANICININ SİPARİŞLERİNİ GETİR (DÜZELTİLDİ!)
 // ============================================================
 router.get('/find/:userId', async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    // BURASI ÇOK ÖNEMLİ: .populate('items.product')
+    // Bu sayede siparişin içindeki ürünlerin sadece ID'si değil,
+    // Başlığı (title), Resmi (images) ve Fiyatı da gelir.
+    const orders = await Order.find({ userId: req.params.userId })
+        .sort({ createdAt: -1 })
+        .populate('items.product'); 
+
     res.status(200).json(orders);
   } catch (err) {
+    console.error("Sipariş Çekme Hatası:", err);
     res.status(500).json(err);
   }
 });
 
 // ============================================================
-// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
+// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin - DÜZELTİLDİ)
 // ============================================================
 router.get('/', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find()
+        .sort({ createdAt: -1 })
+        .populate('items.product'); // Admin de ürün detayını görsün
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
-// --- ADMIN: TÜM SİPARİŞLERİ GETİR (Detaylı) ---
+// --- ADMIN: DETAYLI SİPARİŞ LİSTESİ ---
 router.get('/admin/all', async (req, res) => {
     try {
-        const orders = await Order.find().sort({ createdAt: -1 });
+        const orders = await Order.find()
+            .sort({ createdAt: -1 })
+            .populate('items.product'); // Ürün detaylarını doldur
         res.status(200).json(orders);
     } catch (error) {
         res.status(500).json({ error: "Siparişler çekilemedi." });
