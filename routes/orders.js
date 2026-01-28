@@ -6,45 +6,35 @@ router.post("/", async (req, res) => {
   try {
     const { userId, address, paymentMethod, totalPrice, items } = req.body;
 
-    console.log("📥 Gelen Sipariş Adresi:", address);
+    console.log("📥 Gelen Adres:", JSON.stringify(address)); // Loglarda görelim
 
-    // Adres verisini garantiye al
-    let finalAddress = {};
-
-    if (typeof address === 'string') {
-      // Eğer sadece yazı geldiyse (Eski versiyon uyumu için yedek)
-      finalAddress = {
-        title: "Teslimat Adresi",
-        fullAddress: address, // Yazıyı buraya koy
-        receiverName: "Alıcı",
-        phone: "",
-        city: "",
-        district: ""
-      };
-    } else {
-      // Eğer obje geldiyse (Senin şu an gönderdiğin gibi) direkt kullan
-      finalAddress = address;
-    }
+    // Adres verisi 'Mixed' olduğu için çeviri yapmaya gerek yok.
+    // Direkt ne geliyorsa onu kaydediyoruz.
 
     const newOrder = new Order({
       userId,
-      address: finalAddress, // Veritabanı artık bunu Object olarak kabul edecek
+      address, // Flutter'dan gelen Map/Object olduğu gibi girsin
       paymentMethod,
       totalPrice,
       items,
     });
 
     const savedOrder = await newOrder.save();
-    console.log("✅ Sipariş Başarıyla Oluşturuldu:", savedOrder._id);
+    console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
     
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("❌ Sipariş Oluşturma Hatası:", err); // Terminale detaylı hata basar
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ Sipariş Hatası (Detaylı):", err);
+    
+    // FLUTTER'A GERÇEK HATAYI GÖNDERİYORUZ
+    res.status(500).json({ 
+      success: false, 
+      error: err.message, // Hatanın kısa mesajı
+      details: err        // Hatanın teknik detayı
+    });
   }
 });
-
 // 2. KULLANICININ SİPARİŞLERİNİ GETİR
 router.get('/find/:userId', async (req, res) => {
   try {
