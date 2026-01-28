@@ -5,7 +5,8 @@ const OrderSchema = new mongoose.Schema(
     userId: { type: String, required: true },
     
     // --- BURAYI DEĞİŞTİRDİK: ESNEK OBJE YAPTIK ---
-    // Artık ilçe, mahalle, telefon ne gönderirsen hatasız kaydeder.
+    // 'Object' diyerek Mongoose'a "İçeriğine karışma, ne gelirse kaydet" diyoruz.
+    // Böylece ilçe, mahalle, telefon hatasız kaydedilir.
     address: { type: Object, required: true },
     // ---------------------------------------------
     

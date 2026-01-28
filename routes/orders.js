@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
     let finalAddress = {};
 
     if (typeof address === 'string') {
-      // Eğer sadece yazı geldiyse (Eski versiyon uyumu)
+      // Eğer sadece yazı geldiyse (Eski versiyon uyumu için yedek)
       finalAddress = {
         title: "Teslimat Adresi",
         fullAddress: address, // Yazıyı buraya koy
@@ -22,7 +22,7 @@ router.post("/", async (req, res) => {
         district: ""
       };
     } else {
-      // Eğer obje geldiyse (Yeni versiyon) direkt kullan
+      // Eğer obje geldiyse (Senin şu an gönderdiğin gibi) direkt kullan
       finalAddress = address;
     }
 
