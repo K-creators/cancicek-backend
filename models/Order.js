@@ -4,17 +4,10 @@ const OrderSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true },
     
-    // --- BURASI GÜNCELLENDİ: ARTIK SADECE STRİNG DEĞİL, OBJE TUTACAK ---
-    address: {
-      title: String,
-      address: String,
-      city: String,
-      receiverName: { type: String, default: "" }, // Yeni eklenen
-      phone: { type: String, default: "" }         // Yeni eklenen
-    },
-    // Eğer Frontend sadece düz yazı (String) gönderiyorsa hata almamak için 
-    // yukarıdaki yerine şu da kullanılabilir: { type: mongoose.Schema.Types.Mixed } 
-    // ama doğrusu üstteki gibidir.
+    // --- BURAYI DEĞİŞTİRDİK: ESNEK OBJE YAPTIK ---
+    // Artık ilçe, mahalle, telefon ne gönderirsen hatasız kaydeder.
+    address: { type: Object, required: true },
+    // ---------------------------------------------
     
     paymentMethod: { type: String, required: true },
     totalPrice: { type: Number, required: true },
@@ -24,7 +17,7 @@ const OrderSchema = new mongoose.Schema(
       {
         product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
         quantity: { type: Number, required: true },
-        price: { type: Number, required: true }, // O anki fiyatı kaydetmek önemli
+        price: { type: Number, required: true },
         note: { type: String, default: "" }
       },
     ],

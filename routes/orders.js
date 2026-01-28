@@ -6,43 +6,41 @@ router.post("/", async (req, res) => {
   try {
     const { userId, address, paymentMethod, totalPrice, items } = req.body;
 
-    console.log("📥 Gelen Adres Verisi:", address); // Loglayalım
+    console.log("📥 Gelen Sipariş Adresi:", address);
 
-    // --- KRİTİK DÜZELTME: ADRES FORMATLAMA ---
-    // Eğer Frontend adresi sadece "String" (Yazı) olarak gönderdiyse;
-    // Bunu veritabanının kabul edeceği bir Obje'ye çeviriyoruz.
+    // Adres verisini garantiye al
     let finalAddress = {};
 
     if (typeof address === 'string') {
+      // Eğer sadece yazı geldiyse (Eski versiyon uyumu)
       finalAddress = {
         title: "Teslimat Adresi",
-        address: address,         // Gelen yazıyı buraya koyuyoruz
-        city: "Belirtilmedi",
-        receiverName: "Alıcı",    // Varsayılan
-        phone: ""                 // Varsayılan
+        fullAddress: address, // Yazıyı buraya koy
+        receiverName: "Alıcı",
+        phone: "",
+        city: "",
+        district: ""
       };
     } else {
-      // Eğer zaten obje olarak geldiyse (Yeni versiyon)
+      // Eğer obje geldiyse (Yeni versiyon) direkt kullan
       finalAddress = address;
     }
-    // ------------------------------------------
 
     const newOrder = new Order({
       userId,
-      address: finalAddress, // Artık her zaman Obje formatında
+      address: finalAddress, // Veritabanı artık bunu Object olarak kabul edecek
       paymentMethod,
       totalPrice,
       items,
     });
 
     const savedOrder = await newOrder.save();
-    console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
+    console.log("✅ Sipariş Başarıyla Oluşturuldu:", savedOrder._id);
     
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("❌ Sipariş Hatası:", err);
-    // Hatanın detayını frontend'e gönderiyoruz ki görebilelim
+    console.error("❌ Sipariş Oluşturma Hatası:", err); // Terminale detaylı hata basar
     res.status(500).json({ success: false, error: err.message });
   }
 });
