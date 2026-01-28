@@ -4,16 +4,32 @@ const Order = require('../models/Order');
 // SİPARİŞ OLUŞTURMA
 router.post("/", async (req, res) => {
   try {
-    const { userId, address, paymentMethod, totalPrice, items } = req.body;
+    // 1. TOKEN KONTROLÜ VE USER ID ALMA (EN GÜVENLİ YOL)
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ success: false, error: "Oturum açmanız gerekiyor (Token yok)." });
+    }
 
-    console.log("📥 Gelen Adres:", JSON.stringify(address)); // Loglarda görelim
+    const token = authHeader.split(" ")[1];
+    let decoded;
+    try {
+       decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
+    } catch (err) {
+       return res.status(403).json({ success: false, error: "Geçersiz oturum anahtarı." });
+    }
 
-    // Adres verisi 'Mixed' olduğu için çeviri yapmaya gerek yok.
-    // Direkt ne geliyorsa onu kaydediyoruz.
+    const userIdFromToken = decoded.id; // İşte userId'yi buradan garantili alıyoruz!
+
+    // -----------------------------------------------------
+
+    const { address, paymentMethod, totalPrice, items } = req.body;
+
+    console.log("📥 Gelen Adres:", JSON.stringify(address));
+    console.log("👤 Sipariş Veren User ID:", userIdFromToken);
 
     const newOrder = new Order({
-      userId,
-      address, // Flutter'dan gelen Map/Object olduğu gibi girsin
+      userId: userIdFromToken, // req.body.userId yerine Token'dan gelen ID'yi kullanıyoruz
+      address, 
       paymentMethod,
       totalPrice,
       items,
@@ -25,13 +41,11 @@ router.post("/", async (req, res) => {
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("❌ Sipariş Hatası (Detaylı):", err);
-    
-    // FLUTTER'A GERÇEK HATAYI GÖNDERİYORUZ
+    console.error("❌ PATLADI:", err);
     res.status(500).json({ 
       success: false, 
-      error: err.message, // Hatanın kısa mesajı
-      details: err        // Hatanın teknik detayı
+      error: "Sunucu Hatası: " + err.message,
+      details: err 
     });
   }
 });
