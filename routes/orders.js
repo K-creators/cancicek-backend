@@ -26,7 +26,6 @@ const createOrderHandler = async (req, res) => {
     const { address, paymentMethod, totalPrice, items } = req.body;
 
     console.log("📥 Gelen Adres:", JSON.stringify(address));
-    console.log("👤 User ID:", userIdFromToken);
 
     const newOrder = new Order({
       userId: userIdFromToken,
@@ -54,17 +53,14 @@ const createOrderHandler = async (req, res) => {
 // ============================================================
 // ROTALAR
 // ============================================================
+
+// 1. SİPARİŞ OLUŞTUR
 router.post("/", createOrderHandler);
 router.post("/create", createOrderHandler);
 
-// ============================================================
-// 2. KULLANICININ SİPARİŞLERİNİ GETİR (DÜZELTİLDİ!)
-// ============================================================
+// 2. KULLANICININ SİPARİŞLERİNİ GETİR
 router.get('/find/:userId', async (req, res) => {
   try {
-    // BURASI ÇOK ÖNEMLİ: .populate('items.product')
-    // Bu sayede siparişin içindeki ürünlerin sadece ID'si değil,
-    // Başlığı (title), Resmi (images) ve Fiyatı da gelir.
     const orders = await Order.find({ userId: req.params.userId })
         .sort({ createdAt: -1 })
         .populate('items.product'); 
@@ -76,33 +72,31 @@ router.get('/find/:userId', async (req, res) => {
   }
 });
 
-// ============================================================
-// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin - DÜZELTİLDİ)
-// ============================================================
+// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find()
         .sort({ createdAt: -1 })
-        .populate('items.product'); // Admin de ürün detayını görsün
+        .populate('items.product');
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
-// --- ADMIN: DETAYLI SİPARİŞ LİSTESİ ---
+// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ (Alternatif Route)
 router.get('/admin/all', async (req, res) => {
     try {
         const orders = await Order.find()
             .sort({ createdAt: -1 })
-            .populate('items.product'); // Ürün detaylarını doldur
+            .populate('items.product');
         res.status(200).json(orders);
     } catch (error) {
         res.status(500).json({ error: "Siparişler çekilemedi." });
     }
 });
 
-// --- ADMIN: SİPARİŞ DURUMUNU GÜNCELLE ---
+// 5. ADMIN: SİPARİŞ DURUMUNU GÜNCELLE
 router.put('/admin/update-status/:id', async (req, res) => {
     try {
         const { status } = req.body;
@@ -117,9 +111,7 @@ router.put('/admin/update-status/:id', async (req, res) => {
     }
 });
 
-// ============================================================
-// 4. ADRES GÜNCELLEME
-// ============================================================
+// 6. ADRES GÜNCELLEME (User Modeli Üzerinden)
 router.put('/update-address', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -157,12 +149,11 @@ router.put('/update-address', async (req, res) => {
     console.error("Adres Güncelleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
-  
 });
-// İPTAL TALEBİ ROTASI (Controller olmadan direkt buraya yazdık)
+
+// 7. İPTAL TALEBİ ROTASI (Flutter'dan gelen istek)
 router.put("/cancel-request/:id", async (req, res) => {
   try {
-    const Order = require("../models/Order"); // Modelini import ettiğinden emin ol
     const order = await Order.findById(req.params.id);
 
     if (!order) {
@@ -182,6 +173,5 @@ router.put("/cancel-request/:id", async (req, res) => {
     res.status(500).json(err);
   }
 });
-router.put("/cancel-request/:id", verifyToken, orderController.requestCancellation);
 
 module.exports = router;

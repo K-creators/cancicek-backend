@@ -4,27 +4,22 @@ const OrderSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true },
     
-    // --- DEĞİŞİKLİK BURADA: MIXED TİPİ ---
-    // Bu, "içine ne koyarsan koy, soru sorma, kaydet" demektir.
-    // String, Object, Array... Her şeyi kabul eder.
+    // Adres her türlü veriyi kabul etsin (Map veya String sorunu olmasın)
     address: { type: mongoose.Schema.Types.Mixed, required: true },
-    // -------------------------------------
     
     paymentMethod: { type: String, required: true },
     totalPrice: { type: Number, required: true },
-    status: { type: String, default: "Hazırlanıyor" },
+    
+    // TEK VE DOĞRU STATUS TANIMI
     status: { 
         type: String, 
-        // DİKKAT: Default değer enum içindeki bir değer olmalı!
         default: "pending", 
-        // 'cancel_requested' buraya eklendi
+        // İptal talebi durumu buraya eklendi
         enum: ["pending", "shipped", "delivered", "cancelled", "cancel_requested"],
     },
     
     items: [
       {
-        // Eğer ürün ID'siyle ilgili hata alıyorsan burayı da String yapabiliriz
-        // Ama şimdilik ObjectId kalsın, sorun adres kısmında.
         product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
         quantity: { type: Number, default: 1 },
         price: { type: Number, default: 0 },
@@ -32,7 +27,7 @@ const OrderSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true, strict: false } // strict: false -> Şemada olmayan alan gelse bile hata verme!
+  { timestamps: true, strict: false }
 );
 
 module.exports = mongoose.model("Order", OrderSchema);
