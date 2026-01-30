@@ -13,6 +13,13 @@ const OrderSchema = new mongoose.Schema(
     paymentMethod: { type: String, required: true },
     totalPrice: { type: Number, required: true },
     status: { type: String, default: "Hazırlanıyor" },
+    status: { 
+        type: String, 
+        // DİKKAT: Default değer enum içindeki bir değer olmalı!
+        default: "pending", 
+        // 'cancel_requested' buraya eklendi
+        enum: ["pending", "shipped", "delivered", "cancelled", "cancel_requested"],
+    },
     
     items: [
       {

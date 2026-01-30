@@ -157,6 +157,31 @@ router.put('/update-address', async (req, res) => {
     console.error("Adres Güncelleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
+  
 });
+// İPTAL TALEBİ ROTASI (Controller olmadan direkt buraya yazdık)
+router.put("/cancel-request/:id", async (req, res) => {
+  try {
+    const Order = require("../models/Order"); // Modelini import ettiğinden emin ol
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json("Sipariş bulunamadı.");
+    }
+
+    // Sadece 'pending' ise iptal isteği atılabilir
+    if (order.status !== 'pending') {
+      return res.status(400).json("Bu sipariş iptal edilemez (Kargoda olabilir).");
+    }
+
+    order.status = "cancel_requested";
+    await order.save();
+
+    res.status(200).json(order);
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+router.put("/cancel-request/:id", verifyToken, orderController.requestCancellation);
 
 module.exports = router;
