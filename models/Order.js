@@ -14,8 +14,8 @@ const OrderSchema = new mongoose.Schema(
     status: { 
         type: String, 
         default: "pending", 
-        // İptal talebi durumu buraya eklendi
-        enum: ["pending", "shipped", "delivered", "cancelled", "cancel_requested"],
+        // 'cancel_rejected' durumunu buraya ekledik:
+        enum: ["pending", "shipped", "delivered", "cancelled", "cancel_requested", "cancel_rejected"],
     },
     
     items: [
