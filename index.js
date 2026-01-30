@@ -12,6 +12,7 @@ const instagramRoute = require('./routes/instagram');
 const bannerRoute = require('./routes/banner');
 const categoryRoute = require("./routes/category");
 const notificationRoutes = require('./routes/notifications');
+const settingsRoute = require("./routes/settings");
 
 dotenv.config();
 const app = express();
@@ -30,6 +31,7 @@ mongoose.connect(process.env.MONGO_URL)
 // --- 2. AYARLAR (Middleware) ---
 app.use(cors()); // Mobil uygulamanın erişimine izin ver
 app.use(express.json()); // Gelen verileri JSON olarak oku
+app.use("/api/settings", settingsRoute);
 
 // --- 2.1 RESİMLERİ PAYLAŞIMA AÇ (ÇOK ÖNEMLİ) ---
 // Bu satır sayesinde 'uploads' klasöründeki dosyalar internetten erişilebilir olur.
