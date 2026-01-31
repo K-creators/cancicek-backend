@@ -13,6 +13,7 @@ const bannerRoute = require('./routes/banner');
 const categoryRoute = require("./routes/category");
 const notificationRoutes = require('./routes/notifications');
 const settingsRoute = require("./routes/settings");
+const companyRoute = require("./routes/company");
 
 dotenv.config();
 const app = express();
