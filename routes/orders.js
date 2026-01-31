@@ -3,6 +3,22 @@ const Order = require('../models/Order');
 const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
 
+// --- EKSİK OLAN KISIMLAR (BU BÖLÜM EKSİK OLDUĞU İÇİN HATA ALIYORDUN) ---
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
+
+// Cloudinary Ayarları (Panelinden aldığın bilgileri buraya yaz veya .env kullan)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "SENIN_CLOUD_NAME",
+  api_key: process.env.CLOUDINARY_API_KEY || "SENIN_API_KEY",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "SENIN_API_SECRET"
+});
+
+// Multer Ayarı (Geçici dosya depolama - 'upload' değişkeni burada tanımlanıyor)
+const upload = multer({ dest: 'uploads/' });
+// -----------------------------------------------------------------------
+
 // ============================================================
 // YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA
 // ============================================================
@@ -25,7 +41,7 @@ const createOrderHandler = async (req, res) => {
 
     const { address, paymentMethod, totalPrice, items } = req.body;
 
-    console.log("📥 Gelen Adres:", JSON.stringify(address));
+    // console.log("📥 Gelen Adres:", JSON.stringify(address));
 
     const newOrder = new Order({
       userId: userIdFromToken,
@@ -36,7 +52,7 @@ const createOrderHandler = async (req, res) => {
     });
 
     const savedOrder = await newOrder.save();
-    console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
+    // console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
     
     res.status(200).json({ success: true, order: savedOrder });
 
@@ -174,7 +190,7 @@ router.put("/cancel-request/:id", async (req, res) => {
   }
 });
 
-// 6. ADMİN: RESİM DOSYASI YÜKLEME (GÜNCELLENDİ)
+// 8. ADMİN: RESİM DOSYASI YÜKLEME (GÜNCELLENDİ)
 // Flutter'dan 'image' key'i ile dosya gelecek.
 router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) => {
     try {
@@ -203,11 +219,11 @@ router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) =
 
     } catch (error) {
         console.error("Upload Hatası:", error);
-        res.status(500).json({ error: "Resim yüklenemedi." });
+        res.status(500).json({ error: "Resim yüklenemedi: " + error.message });
     }
 });
 
-// 7. KULLANICI: GERİ BİLDİRİM (LIKE / DISLIKE)
+// 9. KULLANICI: GERİ BİLDİRİM (LIKE / DISLIKE)
 router.put('/user/feedback/:id', async (req, res) => {
     try {
         const { feedback } = req.body; // 'like' veya 'dislike'
