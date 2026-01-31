@@ -3,9 +3,8 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// --- EKSİK OLAN SATIR BU: Middleware'i Dahil Et ---
+// Middleware
 const { verifyTokenAndAuthorization } = require('./verifyToken'); 
-// --------------------------------------------------
 
 // --- CLOUDINARY AYARLARI ---
 const cloudinary = require('cloudinary').v2;
@@ -31,13 +30,12 @@ const upload = multer({ storage: storage });
 
 // --- YARDIMCI FONKSİYON: Kullanıcı Adı Kontrolü ---
 const validateUsername = (username) => {
-  // 3-20 karakter, sadece ingilizce harf, rakam ve alt çizgi
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
   return usernameRegex.test(username);
 };
 
 // ============================================================
-// 1. KAYIT OLMA (REGISTER)
+// 1. KAYIT OLMA (REGISTER) - SMS/OTP KALDIRILDI
 // ============================================================
 router.post('/register', async (req, res) => {
   try {
@@ -55,57 +53,36 @@ router.post('/register', async (req, res) => {
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı." });
 
-    const existingPhone = await User.findOne({ phone });
-    if (existingPhone) return res.status(400).json({ message: "Bu telefon numarası zaten kayıtlı." });
-
-    // 3. Şifreleme ve Kayıt
+    // 3. Şifreleme ve Doğrudan Kayıt
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
-    const otpExpiry = new Date(Date.now() + 3 * 60000);
-
     const newUser = new User({
-      fullName, username, email, phone, password: hashedPassword,
-      otp: otpCode, otpExpires: otpExpiry, isVerified: false,
+      fullName, 
+      username, 
+      email, 
+      phone, 
+      password: hashedPassword,
+      isVerified: true, // E-posta/SMS doğrulaması kalktığı için doğrudan TRUE yapıyoruz
       lastUsernameChange: new Date()
     });
 
     await newUser.save();
-    console.log(`SMS KODU: ${otpCode}`);
-    res.status(201).json({ message: "Kayıt başarılı!", userId: newUser._id });
+    
+    // Kayıttan sonra doğrudan token verip giriş de yaptırabiliriz, 
+    // veya sadece başarılı mesajı dönebiliriz.
+    res.status(201).json({ 
+        message: "Kayıt başarılı! Giriş yapabilirsiniz.", 
+        userId: newUser._id 
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ============================================================
-// 2. SMS DOĞRULAMA
-// ============================================================
-router.post('/verify-otp', async (req, res) => {
-  try {
-    const { userId, code } = req.body;
-    const user = await User.findById(userId);
-    if (!user) return res.status(400).json({ message: "Kullanıcı bulunamadı." });
-
-    if (user.otp !== code || user.otpExpires < Date.now()) {
-      return res.status(400).json({ message: "Kod hatalı veya süresi dolmuş." });
-    }
-
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpires = undefined;
-    await user.save();
-
-    const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET || "GIZLI_KELIME", { expiresIn: '30d' });
-    res.status(200).json({ message: "Hesap doğrulandı!", token, user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ============================================================
-// 3. GİRİŞ YAP
+// 2. GİRİŞ YAP
 // ============================================================
 router.post('/login', async (req, res) => {
   try {
@@ -116,11 +93,15 @@ router.post('/login', async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Şifre hatalı." });
-    if (!user.isVerified) return res.status(403).json({ message: "Önce hesabınızı doğrulayın." });
 
-    const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET || "GIZLI_KELIME", { expiresIn: '30d' });
+    // isVerified kontrolü artık hep true olacağı için problem çıkarmaz.
+    const token = jwt.sign(
+        { id: user._id, isAdmin: user.isAdmin }, 
+        process.env.JWT_SECRET || "GIZLI_KELIME", 
+        { expiresIn: '30d' }
+    );
+    
     const { password: p, ...others } = user._doc;
-
     res.status(200).json({ token, user: others });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -128,7 +109,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ============================================================
-// 4. PROFİL BİLGİSİ (/me)
+// 3. PROFİL BİLGİSİ (/me)
 // ============================================================
 router.get('/me', async (req, res) => {
   try {
@@ -144,7 +125,7 @@ router.get('/me', async (req, res) => {
 });
 
 // ============================================================
-// 5. PROFİL GÜNCELLEME
+// 4. PROFİL GÜNCELLEME
 // ============================================================
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
@@ -161,7 +142,6 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     const { fullName, email, username, phone, password } = req.body;
     let updateData = { fullName }; 
 
-    // Kullanıcı Adı Değişikliği
     if (username && username !== user.username) {
       if (!validateUsername(username)) {
         return res.status(400).json({ message: "Kullanıcı adı formatı hatalı." });
@@ -183,27 +163,23 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
       updateData.lastUsernameChange = new Date();
     }
 
-    // E-posta Değişikliği
     if (email && email !== user.email) {
        const emailExists = await User.findOne({ email });
        if (emailExists) return res.status(400).json({ message: "Bu e-posta başkası tarafından kullanılıyor." });
        updateData.email = email;
     }
 
-    // Telefon Değişikliği
     if (phone && phone !== user.phone) {
        const phoneExists = await User.findOne({ phone });
        if (phoneExists) return res.status(400).json({ message: "Bu numara başkası tarafından kullanılıyor." });
        updateData.phone = phone;
     }
 
-    // Şifre
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // Resim
     if (req.file) {
       updateData.profileImage = req.file.path; 
     }
@@ -217,7 +193,7 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
 });
 
 // ============================================================
-// 6. ADRES EKLEME
+// 5. ADRES EKLEME
 // ============================================================
 router.post('/add-address', async (req, res) => {
   try {
@@ -254,9 +230,8 @@ router.post('/add-address', async (req, res) => {
 });
 
 // ============================================================
-// 7. HESAP SİLME (DÜZELTİLDİ)
+// 6. HESAP SİLME
 // ============================================================
-// verifyTokenAndAuthorization artık en başta require edildiği için çalışacak.
 router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
