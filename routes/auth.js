@@ -35,15 +35,16 @@ const validateUsername = (username) => {
 };
 
 // ============================================================
-// 1. KAYIT OLMA (REGISTER) - SMS/OTP KALDIRILDI
+// 1. KAYIT OLMA (REGISTER) - TELEFON TAMAMEN KALDIRILDI
 // ============================================================
 router.post('/register', async (req, res) => {
   try {
-    const { fullName, username, email, phone, password } = req.body;
+    // phone değişkenini buradan çıkardık
+    const { fullName, username, email, password } = req.body;
 
     // 1. Kullanıcı Adı Format Kontrolü
     if (!validateUsername(username)) {
-      return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, Türkçe karakter veya boşluk içermemeli." });
+      return res.status(400).json({ message: "Kullanıcı adı formatı hatalı." });
     }
 
     // 2. Benzersizlik Kontrolleri
@@ -53,7 +54,7 @@ router.post('/register', async (req, res) => {
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı." });
 
-    // 3. Şifreleme ve Doğrudan Kayıt
+    // 3. Şifreleme ve Kayıt
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -61,20 +62,14 @@ router.post('/register', async (req, res) => {
       fullName, 
       username, 
       email, 
-      phone, 
+      // phone alanını buraya eklemiyoruz
       password: hashedPassword,
-      isVerified: true, // E-posta/SMS doğrulaması kalktığı için doğrudan TRUE yapıyoruz
+      isVerified: true, 
       lastUsernameChange: new Date()
     });
 
     await newUser.save();
-    
-    // Kayıttan sonra doğrudan token verip giriş de yaptırabiliriz, 
-    // veya sadece başarılı mesajı dönebiliriz.
-    res.status(201).json({ 
-        message: "Kayıt başarılı! Giriş yapabilirsiniz.", 
-        userId: newUser._id 
-    });
+    res.status(201).json({ message: "Kayıt başarılı!" });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
