@@ -1,73 +1,71 @@
 const router = require('express').Router();
 const Order = require('../models/Order');
-const Product = require('../models/Product'); // <-- Critical for security check
+const Product = require('../models/Product'); // <-- Güvenlik kontrolü için kritik
 const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
 
-// --- IMAGE UPLOAD SETTINGS ---
+// --- RESİM YÜKLEME AYARLARI ---
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "YOUR_CLOUD_NAME",
-  api_key: process.env.CLOUDINARY_API_KEY || "YOUR_API_KEY",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "YOUR_API_SECRET"
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const upload = multer({ dest: 'uploads/' });
 // ------------------------------
 
 // ============================================================
-// HELPER FUNCTION: CREATE ORDER
+// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA
 // ============================================================
 const createOrderHandler = async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ success: false, error: "You need to log in." });
+      return res.status(401).json({ success: false, error: "Oturum açmanız gerekiyor." });
     }
 
     const token = authHeader.split(" ")[1];
     let decoded;
     try {
-       decoded = jwt.verify(token, process.env.JWT_SECRET || "SECRET_KEY");
+       decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     } catch (err) {
-       return res.status(403).json({ success: false, error: "Invalid session." });
+       return res.status(403).json({ success: false, error: "Geçersiz oturum." });
     }
 
     const userIdFromToken = decoded.id; 
     const { address, paymentMethod, totalPrice, items } = req.body;
 
-    // --- 🛑 SECURITY CHECK START (UPDATED) 🛑 ---
-    // Check every item in the cart against the database
+    // --- 🛑 GÜVENLİK KONTROLÜ BAŞLANGICI 🛑 ---
+    // Sepetteki her ürünü veritabanından kontrol et
     for (const item of items) {
-        // item.product is the ID
         const productData = await Product.findById(item.product);
         
-        // If product exists AND deliveryScope is 'corum_only'
+        // Ürün varsa VE deliveryScope 'corum_only' ise
         if (productData && (productData.deliveryScope === 'corum_only')) {
             
-            // Analyze Address (Clean strings to avoid case/locale issues)
+            // Adresi temizle ve analiz et
             const city = (address.city || "").toLowerCase();
             const district = (address.district || "").toLowerCase();
 
-            // Check if it is Corum
+            // Çorum mu?
             const isCityCorum = city.includes("çorum") || city.includes("corum");
-            // Check if it is Merkez (Center)
+            // Merkez mi?
             const isDistrictMerkez = district.includes("merkez") || district.includes("center");
 
-            // If NOT Corum Center -> THROW ERROR
+            // Eğer Çorum Merkez DEĞİLSE -> HATA VER
             if (!isCityCorum || !isDistrictMerkez) {
                 return res.status(400).json({ 
                     success: false, 
-                    // Error message shown to user
-                    error: `"${productData.title}" can only be delivered to Çorum Merkez! Please change your address.` 
+                    error: `"${productData.title}" ürünü hassas olduğu için sadece Çorum Merkez adresine teslim edilebilir! Lütfen adresinizi düzeltin.` 
                 });
             }
         }
     }
-    // --- 🛑 SECURITY CHECK END 🛑 ---
+    // --- 🛑 GÜVENLİK KONTROLÜ BİTİŞİ 🛑 ---
 
     const newOrder = new Order({
       userId: userIdFromToken,
@@ -81,28 +79,28 @@ const createOrderHandler = async (req, res) => {
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
-    console.error("❌ ORDER ERROR:", err);
+    console.error("❌ SİPARİŞ HATASI:", err);
     res.status(500).json({ 
       success: false, 
-      error: "Server Error: " + err.message,
+      error: "Sunucu Hatası: " + err.message,
       details: err 
     });
   }
 };
 
 // ============================================================
-// ROUTES
+// ROTALAR
 // ============================================================
 
-// 1. CREATE ORDER
+// 1. SİPARİŞ OLUŞTUR
 router.post("/", createOrderHandler);
 router.post("/create", createOrderHandler);
 
-// 2. GET USER ORDERS
+// 2. KULLANICININ SİPARİŞLERİNİ GETİR
 router.get('/find/:userId', async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.params.userId })
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1 }) // En yeni en üstte
         .populate('items.product'); 
     res.status(200).json(orders);
   } catch (err) {
@@ -110,7 +108,7 @@ router.get('/find/:userId', async (req, res) => {
   }
 });
 
-// 3. GET ALL ORDERS (Admin)
+// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find()
@@ -122,7 +120,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 4. ADMIN: DETAILED ORDER LIST
+// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ
 router.get('/admin/all', async (req, res) => {
     try {
         const orders = await Order.find()
@@ -130,11 +128,11 @@ router.get('/admin/all', async (req, res) => {
             .populate('items.product');
         res.status(200).json(orders);
     } catch (error) {
-        res.status(500).json({ error: "Could not fetch orders." });
+        res.status(500).json({ error: "Siparişler çekilemedi." });
     }
 });
 
-// 5. ADMIN: UPDATE STATUS
+// 5. ADMIN: DURUM GÜNCELLE
 router.put('/admin/update-status/:id', async (req, res) => {
     try {
         const { status } = req.body;
@@ -145,15 +143,15 @@ router.put('/admin/update-status/:id', async (req, res) => {
         );
         res.status(200).json(order);
     } catch (error) {
-        res.status(500).json({ error: "Could not update status." });
+        res.status(500).json({ error: "Durum güncellenemedi." });
     }
 });
 
-// 6. UPDATE ADDRESS
+// 6. ADRES GÜNCELLEME
 router.put('/update-address', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ message: "No token." });
+    if (!authHeader) return res.status(401).json({ message: "Token yok." });
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
@@ -177,7 +175,7 @@ router.put('/update-address', async (req, res) => {
       { new: true }
     );
 
-    if (!user) return res.status(404).json({ message: "Address not found." });
+    if (!user) return res.status(404).json({ message: "Adres bulunamadı." });
     res.status(200).json({ success: true, user });
 
   } catch (err) {
@@ -185,12 +183,12 @@ router.put('/update-address', async (req, res) => {
   }
 });
 
-// 7. CANCEL REQUEST
+// 7. İPTAL TALEBİ
 router.put("/cancel-request/:id", async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json("Order not found.");
-    if (order.status !== 'pending') return res.status(400).json("Cannot cancel order.");
+    if (!order) return res.status(404).json("Sipariş bulunamadı.");
+    if (order.status !== 'pending') return res.status(400).json("Sipariş iptal edilemez.");
 
     order.status = "cancel_requested";
     await order.save();
@@ -200,10 +198,10 @@ router.put("/cancel-request/:id", async (req, res) => {
   }
 });
 
-// 8. ADMIN: UPLOAD IMAGE
+// 8. ADMIN: RESİM YÜKLEME
 router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: "No file selected." });
+        if (!req.file) return res.status(400).json({ error: "Dosya seçilmedi." });
 
         const result = await cloudinary.uploader.upload(req.file.path, {
             folder: "orders_prepared",
@@ -218,11 +216,11 @@ router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) =
         );
         res.status(200).json(order);
     } catch (error) {
-        res.status(500).json({ error: "Image upload failed: " + error.message });
+        res.status(500).json({ error: "Resim yüklenemedi: " + error.message });
     }
 });
 
-// 9. USER: FEEDBACK
+// 9. KULLANICI: GERİ BİLDİRİM
 router.put('/user/feedback/:id', async (req, res) => {
     try {
         const { feedback } = req.body; 
@@ -233,7 +231,7 @@ router.put('/user/feedback/:id', async (req, res) => {
         );
         res.status(200).json(order);
     } catch (error) {
-        res.status(500).json({ error: "Could not send feedback." });
+        res.status(500).json({ error: "Geri bildirim gönderilemedi." });
     }
 });
 
