@@ -174,18 +174,36 @@ router.put("/cancel-request/:id", async (req, res) => {
   }
 });
 
-// 6. ADMİN: SİPARİŞ GÖRSELİ YÜKLEME (URL Olarak Kaydeder)
-router.put('/admin/upload-image/:id', async (req, res) => {
+// 6. ADMİN: RESİM DOSYASI YÜKLEME (GÜNCELLENDİ)
+// Flutter'dan 'image' key'i ile dosya gelecek.
+router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) => {
     try {
-        const { imageUrl } = req.body;
+        // Dosya gelmediyse hata ver
+        if (!req.file) {
+            return res.status(400).json({ error: "Dosya seçilmedi." });
+        }
+
+        // 1. Cloudinary'ye yükle
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: "orders_prepared", // Cloudinary'de bu klasöre kaydeder
+            use_filename: true
+        });
+
+        // 2. Geçici dosyayı sunucudan sil (Yer kaplamasın)
+        fs.unlinkSync(req.file.path);
+
+        // 3. URL'i veritabanına kaydet
         const order = await Order.findByIdAndUpdate(
             req.params.id, 
-            { preparedImage: imageUrl },
+            { preparedImage: result.secure_url },
             { new: true }
         );
+        
         res.status(200).json(order);
+
     } catch (error) {
-        res.status(500).json({ error: "Resim güncellenemedi." });
+        console.error("Upload Hatası:", error);
+        res.status(500).json({ error: "Resim yüklenemedi." });
     }
 });
 
