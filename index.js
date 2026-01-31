@@ -47,6 +47,7 @@ app.use("/api/products", productRoute);
 app.use("/api/orders", orderRoute);  
 app.use("/api/banners", bannerRoute);  
 app.use('/api/notifications', notificationRoutes);
+app.use("/api/company", companyRoute);
 
 // Test için Ana Sayfa Rotası
 app.get('/', (req, res) => {
