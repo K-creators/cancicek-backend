@@ -1,23 +1,22 @@
 const router = require('express').Router();
 const Order = require('../models/Order');
+const Product = require('../models/Product'); // <-- BU SATIR ÇOK ÖNEMLİ (Ürün kontrolü için)
 const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
 
-// --- EKSİK OLAN KISIMLAR (BU BÖLÜM EKSİK OLDUĞU İÇİN HATA ALIYORDUN) ---
+// --- RESİM YÜKLEME AYARLARI ---
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 
-// Cloudinary Ayarları (Panelinden aldığın bilgileri buraya yaz veya .env kullan)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "SENIN_CLOUD_NAME",
   api_key: process.env.CLOUDINARY_API_KEY || "SENIN_API_KEY",
   api_secret: process.env.CLOUDINARY_API_SECRET || "SENIN_API_SECRET"
 });
 
-// Multer Ayarı (Geçici dosya depolama - 'upload' değişkeni burada tanımlanıyor)
 const upload = multer({ dest: 'uploads/' });
-// -----------------------------------------------------------------------
+// ------------------------------
 
 // ============================================================
 // YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA
@@ -38,10 +37,38 @@ const createOrderHandler = async (req, res) => {
     }
 
     const userIdFromToken = decoded.id; 
-
     const { address, paymentMethod, totalPrice, items } = req.body;
 
-    // console.log("📥 Gelen Adres:", JSON.stringify(address));
+    // --- 🛑 GÜVENLİK KONTROLÜ BAŞLANGICI 🛑 ---
+    // Sepetteki her ürünü veritabanından kontrol et
+    for (const item of items) {
+        // item.product, ürünün ID'sidir
+        const productData = await Product.findById(item.product);
+        
+        // Eğer ürün bulunduysa ve Çorum'a özelse
+        if (productData && (productData.isCorumOnly === true)) {
+            
+            // Adresi analiz et (Türkçe karakter sorunu olmasın diye temizliyoruz)
+            // Gelen adres objesinin yapısına göre: address.city ve address.district
+            const city = (address.city || "").toLowerCase();
+            const district = (address.district || "").toLowerCase();
+
+            // Çorum mu? (farklı yazımlar)
+            const isCityCorum = city.includes("çorum") || city.includes("corum");
+            // Merkez mi?
+            const isDistrictMerkez = district.includes("merkez") || district.includes("center");
+
+            // Eğer Çorum Merkez DEĞİLSE -> HATA VER VE DURDUR
+            if (!isCityCorum || !isDistrictMerkez) {
+                return res.status(400).json({ 
+                    success: false, 
+                    // Kullanıcıya gösterilecek hata mesajı:
+                    error: `"${productData.title}" ürünü sadece Çorum Merkez adresine teslim edilebilir! Lütfen adresinizi düzeltin.` 
+                });
+            }
+        }
+    }
+    // --- 🛑 GÜVENLİK KONTROLÜ BİTİŞİ 🛑 ---
 
     const newOrder = new Order({
       userId: userIdFromToken,
@@ -52,8 +79,6 @@ const createOrderHandler = async (req, res) => {
     });
 
     const savedOrder = await newOrder.save();
-    // console.log("✅ Sipariş Kaydedildi:", savedOrder._id);
-    
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
@@ -80,10 +105,8 @@ router.get('/find/:userId', async (req, res) => {
     const orders = await Order.find({ userId: req.params.userId })
         .sort({ createdAt: -1 })
         .populate('items.product'); 
-
     res.status(200).json(orders);
   } catch (err) {
-    console.error("Sipariş Çekme Hatası:", err);
     res.status(500).json(err);
   }
 });
@@ -100,7 +123,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ (Alternatif Route)
+// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ
 router.get('/admin/all', async (req, res) => {
     try {
         const orders = await Order.find()
@@ -112,7 +135,7 @@ router.get('/admin/all', async (req, res) => {
     }
 });
 
-// 5. ADMIN: SİPARİŞ DURUMUNU GÜNCELLE
+// 5. ADMIN: DURUM GÜNCELLE
 router.put('/admin/update-status/:id', async (req, res) => {
     try {
         const { status } = req.body;
@@ -127,7 +150,7 @@ router.put('/admin/update-status/:id', async (req, res) => {
     }
 });
 
-// 6. ADRES GÜNCELLEME (User Modeli Üzerinden)
+// 6. ADRES GÜNCELLEME
 router.put('/update-address', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -155,78 +178,55 @@ router.put('/update-address', async (req, res) => {
       { new: true }
     );
 
-    if (!user) {
-      return res.status(404).json({ message: "Adres bulunamadı." });
-    }
-
+    if (!user) return res.status(404).json({ message: "Adres bulunamadı." });
     res.status(200).json({ success: true, user });
 
   } catch (err) {
-    console.error("Adres Güncelleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 7. İPTAL TALEBİ ROTASI (Flutter'dan gelen istek)
+// 7. İPTAL TALEBİ
 router.put("/cancel-request/:id", async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json("Sipariş bulunamadı.");
-    }
-
-    // Sadece 'pending' ise iptal isteği atılabilir
-    if (order.status !== 'pending') {
-      return res.status(400).json("Bu sipariş iptal edilemez (Kargoda olabilir).");
-    }
+    if (!order) return res.status(404).json("Sipariş bulunamadı.");
+    if (order.status !== 'pending') return res.status(400).json("Sipariş iptal edilemez.");
 
     order.status = "cancel_requested";
     await order.save();
-
     res.status(200).json(order);
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
-// 8. ADMİN: RESİM DOSYASI YÜKLEME (GÜNCELLENDİ)
-// Flutter'dan 'image' key'i ile dosya gelecek.
+// 8. ADMIN: RESİM YÜKLEME
 router.put('/admin/upload-image/:id', upload.single('image'), async (req, res) => {
     try {
-        // Dosya gelmediyse hata ver
-        if (!req.file) {
-            return res.status(400).json({ error: "Dosya seçilmedi." });
-        }
+        if (!req.file) return res.status(400).json({ error: "Dosya seçilmedi." });
 
-        // 1. Cloudinary'ye yükle
         const result = await cloudinary.uploader.upload(req.file.path, {
-            folder: "orders_prepared", // Cloudinary'de bu klasöre kaydeder
+            folder: "orders_prepared",
             use_filename: true
         });
-
-        // 2. Geçici dosyayı sunucudan sil (Yer kaplamasın)
         fs.unlinkSync(req.file.path);
 
-        // 3. URL'i veritabanına kaydet
         const order = await Order.findByIdAndUpdate(
             req.params.id, 
             { preparedImage: result.secure_url },
             { new: true }
         );
-        
         res.status(200).json(order);
-
     } catch (error) {
-        console.error("Upload Hatası:", error);
         res.status(500).json({ error: "Resim yüklenemedi: " + error.message });
     }
 });
 
-// 9. KULLANICI: GERİ BİLDİRİM (LIKE / DISLIKE)
+// 9. KULLANICI: GERİ BİLDİRİM
 router.put('/user/feedback/:id', async (req, res) => {
     try {
-        const { feedback } = req.body; // 'like' veya 'dislike'
+        const { feedback } = req.body; 
         const order = await Order.findByIdAndUpdate(
             req.params.id, 
             { customerFeedback: feedback },
