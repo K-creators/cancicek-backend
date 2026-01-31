@@ -3,11 +3,14 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// --- EKSİK OLAN SATIR BU: Middleware'i Dahil Et ---
+const { verifyTokenAndAuthorization } = require('./verifyToken'); 
+// --------------------------------------------------
+
 // --- CLOUDINARY AYARLARI ---
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-const { verifyTokenAndAuthorization } = require("./verifyToken");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -34,7 +37,7 @@ const validateUsername = (username) => {
 };
 
 // ============================================================
-// 1. KAYIT OLMA (REGISTER) - GÜNCELLENDİ
+// 1. KAYIT OLMA (REGISTER)
 // ============================================================
 router.post('/register', async (req, res) => {
   try {
@@ -45,17 +48,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: "Kullanıcı adı 3-20 karakter olmalı, Türkçe karakter veya boşluk içermemeli." });
     }
 
-    // 2. Benzersizlik Kontrolleri (Sırayla kontrol edip net mesaj verelim)
-    
-    // A) Kullanıcı Adı Müsait mi?
+    // 2. Benzersizlik Kontrolleri
     const existingUsername = await User.findOne({ username });
     if (existingUsername) return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
 
-    // B) E-posta Müsait mi?
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı." });
 
-    // C) Telefon Müsait mi?
     const existingPhone = await User.findOne({ phone });
     if (existingPhone) return res.status(400).json({ message: "Bu telefon numarası zaten kayıtlı." });
 
@@ -69,7 +68,7 @@ router.post('/register', async (req, res) => {
     const newUser = new User({
       fullName, username, email, phone, password: hashedPassword,
       otp: otpCode, otpExpires: otpExpiry, isVerified: false,
-      lastUsernameChange: new Date() // Kayıt tarihi başlangıç kabul edilir
+      lastUsernameChange: new Date()
     });
 
     await newUser.save();
@@ -81,7 +80,7 @@ router.post('/register', async (req, res) => {
 });
 
 // ============================================================
-// 2. SMS DOĞRULAMA (AYNI)
+// 2. SMS DOĞRULAMA
 // ============================================================
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -106,7 +105,7 @@ router.post('/verify-otp', async (req, res) => {
 });
 
 // ============================================================
-// 3. GİRİŞ YAP (AYNI)
+// 3. GİRİŞ YAP
 // ============================================================
 router.post('/login', async (req, res) => {
   try {
@@ -129,7 +128,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ============================================================
-// 4. PROFİL BİLGİSİ (/me) (AYNI)
+// 4. PROFİL BİLGİSİ (/me)
 // ============================================================
 router.get('/me', async (req, res) => {
   try {
@@ -145,7 +144,7 @@ router.get('/me', async (req, res) => {
 });
 
 // ============================================================
-// 5. PROFİL GÜNCELLEME (TAM GÜVENLİKLİ)
+// 5. PROFİL GÜNCELLEME
 // ============================================================
 router.put('/updateDetails', upload.single("photo"), async (req, res) => {
   try {
@@ -156,25 +155,20 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "GIZLI_KELIME");
     const userId = decoded.id;
 
-    // Mevcut kullanıcıyı bul
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
 
     const { fullName, email, username, phone, password } = req.body;
     let updateData = { fullName }; 
 
-    // --- A) KULLANICI ADI DEĞİŞİKLİĞİ ---
+    // Kullanıcı Adı Değişikliği
     if (username && username !== user.username) {
-      // 1. Format Kontrolü
       if (!validateUsername(username)) {
-        return res.status(400).json({ message: "Kullanıcı adı formatı hatalı (Sadece harf, rakam, _)." });
+        return res.status(400).json({ message: "Kullanıcı adı formatı hatalı." });
       }
-
-      // 2. Benzersizlik Kontrolü
       const existingUser = await User.findOne({ username });
       if (existingUser) return res.status(400).json({ message: "Bu kullanıcı adı zaten alınmış." });
 
-      // 3. Tarih Kontrolü (Haftada 1 Kez)
       if (user.lastUsernameChange) {
         const oneWeek = 7 * 24 * 60 * 60 * 1000;
         const now = new Date().getTime();
@@ -185,30 +179,24 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
           return res.status(400).json({ message: `Kullanıcı adınızı değiştirmek için ${daysLeft} gün daha beklemelisiniz.` });
         }
       }
-
       updateData.username = username;
       updateData.lastUsernameChange = new Date();
     }
 
-    // --- B) E-POSTA DEĞİŞİKLİĞİ VE KONTROLÜ ---
+    // E-posta Değişikliği
     if (email && email !== user.email) {
-       // Başkası kullanıyor mu?
        const emailExists = await User.findOne({ email });
        if (emailExists) return res.status(400).json({ message: "Bu e-posta başkası tarafından kullanılıyor." });
-       
        updateData.email = email;
     }
 
-    // --- C) TELEFON DEĞİŞİKLİĞİ VE KONTROLÜ ---
+    // Telefon Değişikliği
     if (phone && phone !== user.phone) {
-       // Başkası kullanıyor mu?
        const phoneExists = await User.findOne({ phone });
-       if (phoneExists) return res.status(400).json({ message: "Bu telefon numarası başkası tarafından kullanılıyor." });
-       
+       if (phoneExists) return res.status(400).json({ message: "Bu numara başkası tarafından kullanılıyor." });
        updateData.phone = phone;
     }
 
-    // --- D) DİĞER İŞLEMLER ---
     // Şifre
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
@@ -221,16 +209,16 @@ router.put('/updateDetails', upload.single("photo"), async (req, res) => {
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true }).select("-password");
-    
     res.status(200).json({ success: true, user: updatedUser });
 
   } catch (err) {
-    console.error("Güncelleme Hatası:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 6. ADRES EKLEME (YENİ VE DETAYLI)
+// ============================================================
+// 6. ADRES EKLEME
+// ============================================================
 router.post('/add-address', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -242,18 +230,17 @@ router.post('/add-address', async (req, res) => {
 
     const { title, address, city, receiverName, phone } = req.body;
 
-    // Basit Validasyon
     if (!title || !address || !receiverName || !phone) {
-      return res.status(400).json({ message: "Lütfen başlık, adres, alıcı adı ve telefonu giriniz." });
+      return res.status(400).json({ message: "Lütfen zorunlu alanları doldurunuz." });
     }
 
     const newAddress = {
       title,
       address,
       city: city || "",
-      receiverName, // Yeni
-      phone,        // Yeni
-      id: new Date().getTime().toString() // Basit bir ID
+      receiverName,
+      phone,
+      id: new Date().getTime().toString()
     };
 
     const user = await User.findById(userId);
@@ -261,13 +248,15 @@ router.post('/add-address', async (req, res) => {
     await user.save();
 
     res.status(200).json({ success: true, user });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// HESAP SİLME
+// ============================================================
+// 7. HESAP SİLME (DÜZELTİLDİ)
+// ============================================================
+// verifyTokenAndAuthorization artık en başta require edildiği için çalışacak.
 router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
