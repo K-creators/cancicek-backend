@@ -35,16 +35,15 @@ const validateUsername = (username) => {
 };
 
 // ============================================================
-// 1. KAYIT OLMA (REGISTER) - TELEFON TAMAMEN KALDIRILDI
+// 1. KAYIT OLMA (REGISTER) - TELEFON YOK & OTOMATİK GİRİŞ
 // ============================================================
 router.post('/register', async (req, res) => {
   try {
-    // phone değişkenini buradan çıkardık
     const { fullName, username, email, password } = req.body;
 
     // 1. Kullanıcı Adı Format Kontrolü
     if (!validateUsername(username)) {
-      return res.status(400).json({ message: "Kullanıcı adı formatı hatalı." });
+      return res.status(400).json({ message: "Kullanıcı adı formatı hatalı. (3-20 karakter, özel simge içermez)" });
     }
 
     // 2. Benzersizlik Kontrolleri
@@ -54,25 +53,43 @@ router.post('/register', async (req, res) => {
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı." });
 
-    // 3. Şifreleme ve Kayıt
+    // 3. Şifreleme
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // 4. Kullanıcıyı Oluştur ve Kaydet
     const newUser = new User({
       fullName, 
       username, 
       email, 
-      // phone alanını buraya eklemiyoruz
       password: hashedPassword,
-      isVerified: true, 
+      isVerified: true, // Doğrudan onaylı başlıyor
       lastUsernameChange: new Date()
     });
 
-    await newUser.save();
-    res.status(201).json({ message: "Kayıt başarılı!" });
+    const savedUser = await newUser.save();
+
+    // 5. KAYIT SONRASI OTOMATİK TOKEN OLUŞTURMA
+    // Bu sayede Flutter tarafında kullanıcı tekrar login sayfasına gitmez
+    const token = jwt.sign(
+        { id: savedUser._id, isAdmin: savedUser.isAdmin }, 
+        process.env.JWT_SECRET || "GIZLI_KELIME", 
+        { expiresIn: '30d' }
+    );
+
+    // Şifreyi objeden çıkarıp diğer bilgileri ayırıyoruz
+    const { password: p, ...others } = savedUser._doc;
+
+    // 6. TEK BİR YANIT GÖNDER
+    res.status(201).json({ 
+        message: "Kayıt başarılı!", 
+        token: token, 
+        user: others 
+    });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Register Error:", err);
+    res.status(500).json({ error: "Sunucu hatası oluştu." });
   }
 });
 
