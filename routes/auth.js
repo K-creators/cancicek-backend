@@ -265,4 +265,15 @@ router.post('/add-address', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// HESAP SİLME
+router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.status(200).json("Hesap başarıyla silindi.");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
 module.exports = router;
