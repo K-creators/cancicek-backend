@@ -40,23 +40,18 @@ const createOrderHandler = async (req, res) => {
     const { address, paymentMethod, totalPrice, items } = req.body;
 
     // --- 🛑 GÜVENLİK KONTROLÜ BAŞLANGICI 🛑 ---
-    // Sepetteki her ürünü veritabanından kontrol et
     for (const item of items) {
         const productData = await Product.findById(item.product);
         
         // Ürün varsa VE deliveryScope 'corum_only' ise
         if (productData && (productData.deliveryScope === 'corum_only')) {
             
-            // Adresi temizle ve analiz et
             const city = (address.city || "").toLowerCase();
             const district = (address.district || "").toLowerCase();
 
-            // Çorum mu?
             const isCityCorum = city.includes("çorum") || city.includes("corum");
-            // Merkez mi?
             const isDistrictMerkez = district.includes("merkez") || district.includes("center");
 
-            // Eğer Çorum Merkez DEĞİLSE -> HATA VER
             if (!isCityCorum || !isDistrictMerkez) {
                 return res.status(400).json({ 
                     success: false, 
@@ -96,11 +91,12 @@ const createOrderHandler = async (req, res) => {
 router.post("/", createOrderHandler);
 router.post("/create", createOrderHandler);
 
-// 2. KULLANICININ SİPARİŞLERİNİ GETİR
+// 2. KULLANICININ SİPARİŞLERİNİ GETİR (DÜZELTİLDİ)
 router.get('/find/:userId', async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.params.userId })
-        .sort({ createdAt: -1 }) // En yeni en üstte
+        // createdAt yerine _id kullandık. Bu en garantisidir.
+        .sort({ _id: -1 }) 
         .populate('items.product'); 
     res.status(200).json(orders);
   } catch (err) {
@@ -108,11 +104,11 @@ router.get('/find/:userId', async (req, res) => {
   }
 });
 
-// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
+// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin - DÜZELTİLDİ)
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find()
-        .sort({ createdAt: -1 })
+        .sort({ _id: -1 }) // En yeni en üstte
         .populate('items.product');
     res.status(200).json(orders);
   } catch (err) {
@@ -120,11 +116,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ
+// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ (DÜZELTİLDİ)
 router.get('/admin/all', async (req, res) => {
     try {
         const orders = await Order.find()
-            .sort({ createdAt: -1 })
+            .sort({ _id: -1 }) // En yeni en üstte
             .populate('items.product');
         res.status(200).json(orders);
     } catch (error) {
