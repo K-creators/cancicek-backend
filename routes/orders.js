@@ -174,4 +174,34 @@ router.put("/cancel-request/:id", async (req, res) => {
   }
 });
 
+// 6. ADMİN: SİPARİŞ GÖRSELİ YÜKLEME (URL Olarak Kaydeder)
+router.put('/admin/upload-image/:id', async (req, res) => {
+    try {
+        const { imageUrl } = req.body;
+        const order = await Order.findByIdAndUpdate(
+            req.params.id, 
+            { preparedImage: imageUrl },
+            { new: true }
+        );
+        res.status(200).json(order);
+    } catch (error) {
+        res.status(500).json({ error: "Resim güncellenemedi." });
+    }
+});
+
+// 7. KULLANICI: GERİ BİLDİRİM (LIKE / DISLIKE)
+router.put('/user/feedback/:id', async (req, res) => {
+    try {
+        const { feedback } = req.body; // 'like' veya 'dislike'
+        const order = await Order.findByIdAndUpdate(
+            req.params.id, 
+            { customerFeedback: feedback },
+            { new: true }
+        );
+        res.status(200).json(order);
+    } catch (error) {
+        res.status(500).json({ error: "Geri bildirim gönderilemedi." });
+    }
+});
+
 module.exports = router;

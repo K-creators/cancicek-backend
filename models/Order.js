@@ -9,6 +9,8 @@ const OrderSchema = new mongoose.Schema(
     
     paymentMethod: { type: String, required: true },
     totalPrice: { type: Number, required: true },
+    preparedImage: { type: String, default: "" }, // Adminin yüklediği resim
+    customerFeedback: { type: String, enum: ["none", "like", "dislike"], default: "none" }, // Kullanıcı tepkisi
     
     // TEK VE DOĞRU STATUS TANIMI
     status: { 
