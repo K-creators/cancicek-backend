@@ -2,18 +2,23 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const path = require('path'); // --- 1. EKLENDİ: Dosya yolu işlemleri için ---
+const path = require('path'); 
 const fs = require('fs');
+
 // Rota Dosyalarını Çağır
 const authRoute = require('./routes/auth');
 const productRoute = require('./routes/products');
-const orderRoute = require('./routes/orders'); // Sipariş rotası
+const orderRoute = require('./routes/orders');
 const instagramRoute = require('./routes/instagram');
 const bannerRoute = require('./routes/banner');
 const categoryRoute = require("./routes/category");
 const notificationRoutes = require('./routes/notifications');
 const settingsRoute = require("./routes/settings");
 const companyRoute = require("./routes/company");
+
+// --- 1. DEĞİŞİKLİK: Payment dosyasını buraya ekledik ---
+const paymentRoute = require("./routes/payment"); 
+// ------------------------------------------------------
 
 dotenv.config();
 const app = express();
@@ -22,22 +27,21 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
   console.log("📂 'uploads' klasörü oluşturuldu.");
 }
-// --- 1. VERİTABANI BAĞLANTISI ---
+
+// --- VERİTABANI BAĞLANTISI ---
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("✅ Veritabanı bağlantısı BAŞARILI!"))
   .catch((err) => {
     console.log("❌ Veritabanı Hatası:", err);
   });
 
-// --- 2. AYARLAR (Middleware) ---
-app.use(cors()); // Mobil uygulamanın erişimine izin ver
-app.use(express.json()); // Gelen verileri JSON olarak oku
+// --- AYARLAR ---
+app.use(cors()); 
+app.use(express.json()); 
 app.use("/api/settings", settingsRoute);
 
-// --- 2.1 RESİMLERİ PAYLAŞIMA AÇ (ÇOK ÖNEMLİ) ---
-// Bu satır sayesinde 'uploads' klasöründeki dosyalar internetten erişilebilir olur.
+// --- RESİMLERİ PAYLAŞIMA AÇ ---
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
-// ------------------------------------------------
 
 app.use("/api/instagram", instagramRoute);
 app.use("/api/categories", categoryRoute);
@@ -50,12 +54,16 @@ app.use("/api/banners", bannerRoute);
 app.use('/api/notifications', notificationRoutes);
 app.use("/api/company", companyRoute);
 
+// --- 2. DEĞİŞİKLİK: Payment rotasını aktif ettik ---
+app.use("/api/payment", paymentRoute); 
+// ---------------------------------------------------
+
 // Test için Ana Sayfa Rotası
 app.get('/', (req, res) => {
   res.send('Can Çiçek Sunucusu Yayında! 🌸');
 });
 
-// --- 4. HATA YAKALAMA ---
+// --- HATA YAKALAMA ---
 app.use((err, req, res, next) => {
   console.error("🔥 Sunucu Hatası:", err.stack);
   res.status(500).json({ 
@@ -65,7 +73,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- 5. SUNUCUYU BAŞLAT ---
+// --- SUNUCUYU BAŞLAT ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Sunucu çalışıyor: http://localhost:${PORT}`);
