@@ -1,10 +1,13 @@
 const router = require('express').Router();
-const Iyzipay = require('iyzipay');
+require('dotenv').config();
 
 // --- IYZICO SANDBOX (TEST) AYARLARI ---
+const Iyzipay = require('iyzipay');
+
 const iyzipay = new Iyzipay({
-    apiKey: 'sandbox-....', // Iyzico panelinden alacağın API Key
-    secretKey: 'sandbox-....', // Iyzico panelinden alacağın Secret Key
+    // ARTIK ŞİFRE YOK, process.env VAR
+    apiKey: process.env.IYZICO_API_KEY,       
+    secretKey: process.env.IYZICO_SECRET_KEY, 
     uri: 'https://sandbox-api.iyzipay.com'
 });
 
