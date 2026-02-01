@@ -1,88 +1,140 @@
 const router = require('express').Router();
+const Iyzipay = require('iyzipay');
 require('dotenv').config();
 
-// --- IYZICO SANDBOX (TEST) AYARLARI ---
-const Iyzipay = require('iyzipay');
-
+// --- IYZICO AYARLARI ---
 const iyzipay = new Iyzipay({
-    // ARTIK ŞİFRE YOK, process.env VAR
-    apiKey: process.env.IYZICO_API_KEY,       
-    secretKey: process.env.IYZICO_SECRET_KEY, 
+    apiKey: process.env.IYZICO_API_KEY,
+    secretKey: process.env.IYZICO_SECRET_KEY,
     uri: 'https://sandbox-api.iyzipay.com'
 });
 
-// 1. ÖDEMEYİ BAŞLAT (Kart bilgilerini alır, HTML döner)
+// ============================================================
+// 1. ÖDEME FORMUNU BAŞLAT (Initialize)
+// ============================================================
 router.post('/initialize', (req, res) => {
-    const { cardHolderName, cardNumber, expireMonth, expireYear, cvc, price, buyerId, userAddress } = req.body;
+    // Frontend'den gelen verileri alıyoruz
+    // Not: buyer... bilgileri Register ekranından veya Profil'den gelmeli
+    const { 
+        price, 
+        paidPrice, 
+        basketItems, 
+        buyerName, 
+        buyerSurname, 
+        buyerPhone, 
+        buyerEmail, 
+        buyerAddress, 
+        buyerCity 
+    } = req.body;
+
+    // Fiyatı string formatına çevir (Iyzico string ister)
+    const priceStr = price.toString();
+
+    // Sepet içeriğini Iyzico formatına çeviriyoruz
+    // Eğer sepet boş gelirse hata vermemesi için "Genel Sipariş" adında tek bir ürün oluşturuyoruz
+    const items = (basketItems && basketItems.length > 0) 
+        ? basketItems.map((item) => ({
+            id: item._id || 'BI101',
+            name: item.title || 'Ürün',
+            category1: 'Çiçek',
+            itemType: Iyzipay.BASKET_ITEM_TYPE.PHYSICAL,
+            price: item.price.toString()
+        }))
+        : [{
+            id: 'BI101',
+            name: 'Sipariş Toplamı',
+            category1: 'Genel',
+            itemType: Iyzipay.BASKET_ITEM_TYPE.PHYSICAL,
+            price: priceStr
+        }];
 
     const request = {
         locale: Iyzipay.LOCALE.TR,
-        conversationId: '123456789', // Sipariş numarası (Unique olmalı)
-        price: price, // Sepet tutarı
-        paidPrice: price, // İndirim varsa burası düşer, yoksa aynı
+        conversationId: '123456789',
+        price: priceStr,
+        paidPrice: priceStr, // İndirim varsa burası düşer
         currency: Iyzipay.CURRENCY.TRY,
-        installments: '1',
         basketId: 'B67832',
-        paymentChannel: Iyzipay.PAYMENT_CHANNEL.MOBILE,
         paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
-        callbackUrl: 'https://senin-backend-adresin.onrender.com/api/payment/callback', // 3D bitince buraya döner
         
-        paymentCard: {
-            cardHolderName: cardHolderName,
-            cardNumber: cardNumber,
-            expireMonth: expireMonth,
-            expireYear: expireYear,
-            cvc: cvc,
-            registerCard: '0' // Kartı kaydetme
-        },
+        // ÖNEMLİ: Buraya kendi Render URL'ini yazmalısın!
+        // Localde test ediyorsan çalışmaz, deploy etmelisin veya ngrok kullanmalısın.
+        callbackUrl: 'https://cancicek-api.onrender.com/api/payment/callback',
         
-        // --- ALICI BİLGİLERİ (Zorunlu) ---
+        enabledInstallments: [1, 2, 3, 6, 9],
+        
         buyer: {
-            id: buyerId || 'BY789',
-            name: 'John',
-            surname: 'Doe',
-            gsmNumber: '+905350000000',
-            email: 'email@email.com',
-            identityNumber: '74300864791',
+            id: 'BY789',
+            name: buyerName || 'Misafir',
+            surname: buyerSurname || 'Kullanıcı',
+            gsmNumber: buyerPhone || '+905555555555',
+            email: buyerEmail || 'email@email.com',
+            identityNumber: '11111111110', // Sandbox'ta rastgele geçerli bir TC
             lastLoginDate: '2015-10-05 12:43:35',
             registrationDate: '2013-04-21 15:12:09',
-            registrationAddress: userAddress || 'Nidakule Göztepe, Merdivenköy Mah. Bora Sok. No:1',
-            ip: '85.34.78.112',
-            city: 'Istanbul',
+            registrationAddress: buyerAddress || 'Nidakule Göztepe, Merdivenköy Mah.',
+            ip: '85.34.78.112', // Kullanıcının IP'si (Req.ip'den de alabilirsin)
+            city: buyerCity || 'Istanbul',
             country: 'Turkey',
             zipCode: '34732'
         },
         shippingAddress: {
-            contactName: 'Jane Doe',
-            city: 'Istanbul',
+            contactName: `${buyerName} ${buyerSurname}`,
+            city: buyerCity || 'Istanbul',
             country: 'Turkey',
-            address: userAddress || 'Nidakule Göztepe, Merdivenköy Mah. Bora Sok. No:1',
+            address: buyerAddress || 'Nidakule Göztepe, Merdivenköy Mah.',
             zipCode: '34742'
         },
         billingAddress: {
-            contactName: 'Jane Doe',
-            city: 'Istanbul',
+            contactName: `${buyerName} ${buyerSurname}`,
+            city: buyerCity || 'Istanbul',
             country: 'Turkey',
-            address: userAddress || 'Nidakule Göztepe, Merdivenköy Mah. Bora Sok. No:1',
+            address: buyerAddress || 'Nidakule Göztepe, Merdivenköy Mah.',
             zipCode: '34742'
         },
-        basketItems: [
-            {
-                id: 'BI101',
-                name: 'Çiçek Siparişi',
-                category1: 'Çiçek',
-                itemType: Iyzipay.BASKET_ITEM_TYPE.PHYSICAL,
-                price: price
-            }
-        ]
+        basketItems: items
     };
 
-    iyzipay.threedsInitialize.create(request, (err, result) => {
+    iyzipay.checkoutFormInitialize.create(request, (err, result) => {
         if (err) {
             return res.status(500).json({ status: 'failure', message: err });
         }
-        // Başarılıysa HTML içeriğini Flutter'a gönder
+        // Başarılıysa 'checkoutFormContent' (HTML) ve 'paymentPageUrl' döner
         res.status(200).json(result);
+    });
+});
+
+// ============================================================
+// 2. CALLBACK (IYZICO BURAYA DÖNECEK)
+// ============================================================
+router.post('/callback', (req, res) => {
+    // Iyzico işlem bitince buraya bir POST isteği atar ve 'token' gönderir.
+    const { token } = req.body;
+
+    iyzipay.checkoutForm.retrieve({ token: token }, (err, result) => {
+        if (!err && result.paymentStatus === 'SUCCESS') {
+            // Ödeme Başarılı!
+            // Flutter WebView bu HTML'i görünce anlayacak.
+            res.send(`
+                <html>
+                <head><title>Ödeme Başarılı</title></head>
+                <body style="background-color:#e1b3ea; display:flex; justify-content:center; align-items:center; height:100vh;">
+                    <h1 style="color:white; font-family:sans-serif;">SUCCESS</h1>
+                </body>
+                </html>
+            `);
+        } else {
+            // Ödeme Başarısız
+            res.send(`
+                <html>
+                <head><title>Ödeme Başarısız</title></head>
+                <body style="background-color:red; display:flex; justify-content:center; align-items:center; height:100vh;">
+                    <h1 style="color:white; font-family:sans-serif;">FAILURE</h1>
+                    <p>${result ? result.errorMessage : 'Hata'}</p>
+                </body>
+                </html>
+            `);
+        }
     });
 });
 
