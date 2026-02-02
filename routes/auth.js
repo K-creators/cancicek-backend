@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Middleware
-const { verifyTokenAndAuthorization } = require('./verifyToken'); 
+const { verifyToken, verifyTokenAndAuthorization } = require('./verifyToken');
 
 // --- CLOUDINARY AYARLARI ---
 const cloudinary = require('cloudinary').v2;
@@ -254,8 +254,9 @@ router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
 router.post('/save-token', verifyToken, async (req, res) => {
   try {
     const { token } = req.body;
+    // req.user.id, verifyToken middleware'inden gelir
     await User.findByIdAndUpdate(req.user.id, { fcmToken: token });
-    res.status(200).json("Token kaydedildi.");
+    res.status(200).json("Token başarıyla kaydedildi.");
   } catch (err) {
     res.status(500).json(err);
   }
