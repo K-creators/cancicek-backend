@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema(
     
     // --- YENİ: KULLANICI ADI DEĞİŞTİRME TARİHİ ---
     lastUsernameChange: { type: Date, default: null },
+    fcmToken: { type: String, default: "" },
 
     isAdmin: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },

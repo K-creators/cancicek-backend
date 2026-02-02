@@ -250,4 +250,15 @@ router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
   }
 });
 
+// FCM Token Güncelleme/Kaydetme
+router.post('/save-token', verifyToken, async (req, res) => {
+  try {
+    const { token } = req.body;
+    await User.findByIdAndUpdate(req.user.id, { fcmToken: token });
+    res.status(200).json("Token kaydedildi.");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
 module.exports = router;

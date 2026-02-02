@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const Order = require('../models/Order');
-const Product = require('../models/Product'); // <-- Güvenlik kontrolü için kritik
+const Product = require('../models/Product'); 
 const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
+const admin = require('firebase-admin'); // --- 1. EKLENDİ: Bildirim İçin ---
 
 // --- RESİM YÜKLEME AYARLARI ---
 const multer = require('multer');
@@ -19,7 +20,72 @@ const upload = multer({ dest: 'uploads/' });
 // ------------------------------
 
 // ============================================================
-// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA
+// YARDIMCI FONKSİYON: OTOMATİK BİLDİRİM GÖNDERİCİ
+// ============================================================
+const sendOrderStatusNotification = async (userId, status, orderId) => {
+  try {
+    // Admin başlatılmamışsa veya hata varsa dur (Uygulama çökmesin)
+    if (admin.apps.length === 0) return;
+
+    // 1. Kullanıcının Token'ını Bul
+    const user = await User.findById(userId);
+    if (!user || !user.fcmToken) return; // Token yoksa gönderme
+
+    // 2. Duruma Göre Mesaj Hazırla
+    let title = "Sipariş Durumu";
+    let body = "";
+
+    switch (status) {
+      case "Onaylandı":
+      case "pending": // Varsayılan başlangıç
+        title = "Siparişiniz Alındı! 🌸";
+        body = `Siparişiniz başarıyla oluşturuldu. Teşekkür ederiz!`;
+        break;
+      case "Hazırlanıyor":
+        title = "Hazırlanıyor 🎁";
+        body = "Çiçekleriniz özenle hazırlanıyor.";
+        break;
+      case "Yolda":
+      case "Kargoya Verildi":
+        title = "Siparişiniz Yolda! 🚚";
+        body = "Siparişiniz yola çıktı, gelmek üzere!";
+        break;
+      case "Teslim Edildi":
+        title = "Teslim Edildi ✅";
+        body = "Siparişiniz teslim edildi. Bizi tercih ettiğiniz için teşekkürler.";
+        break;
+      case "İptal Edildi":
+      case "cancelled":
+        title = "Sipariş İptali ❌";
+        body = "Siparişiniz iptal edilmiştir. Detaylar için iletişime geçebilirsiniz.";
+        break;
+      default:
+        // Bilinmeyen durumlarda genel mesaj
+        title = "Sipariş Güncellemesi";
+        body = `Siparişinizin durumu güncellendi: ${status}`;
+    }
+
+    // 3. Bildirimi Gönder
+    const message = {
+      notification: { title, body },
+      token: user.fcmToken,
+      data: { 
+        click_action: "FLUTTER_NOTIFICATION_CLICK", 
+        orderId: orderId.toString(),
+        type: "order_update"
+      }
+    };
+
+    await admin.messaging().send(message);
+    console.log(`🔔 Bildirim gönderildi: ${user.username} -> ${status}`);
+
+  } catch (error) {
+    console.log("⚠️ Otomatik bildirim hatası (Önemsiz):", error.message);
+  }
+};
+
+// ============================================================
+// YARDIMCI FONKSİYON: SİPARİŞ OLUŞTURMA HANDLER
 // ============================================================
 const createOrderHandler = async (req, res) => {
   try {
@@ -71,6 +137,12 @@ const createOrderHandler = async (req, res) => {
     });
 
     const savedOrder = await newOrder.save();
+
+    // --- 2. EKLENDİ: SİPARİŞ ALINDI BİLDİRİMİ ---
+    // İşlem başarılı olduktan sonra arka planda bildirimi atıyoruz (await etmeyebiliriz hız için ama güvenli olsun diye await ekledim)
+    await sendOrderStatusNotification(userIdFromToken, "Onaylandı", savedOrder._id);
+    // --------------------------------------------
+
     res.status(200).json({ success: true, order: savedOrder });
 
   } catch (err) {
@@ -91,11 +163,10 @@ const createOrderHandler = async (req, res) => {
 router.post("/", createOrderHandler);
 router.post("/create", createOrderHandler);
 
-// 2. KULLANICININ SİPARİŞLERİNİ GETİR (DÜZELTİLDİ)
+// 2. KULLANICININ SİPARİŞLERİNİ GETİR
 router.get('/find/:userId', async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.params.userId })
-        // createdAt yerine _id kullandık. Bu en garantisidir.
         .sort({ _id: -1 }) 
         .populate('items.product'); 
     res.status(200).json(orders);
@@ -104,11 +175,11 @@ router.get('/find/:userId', async (req, res) => {
   }
 });
 
-// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin - DÜZELTİLDİ)
+// 3. TÜM SİPARİŞLERİ GETİR (Admin İçin)
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find()
-        .sort({ _id: -1 }) // En yeni en üstte
+        .sort({ _id: -1 }) 
         .populate('items.product');
     res.status(200).json(orders);
   } catch (err) {
@@ -116,11 +187,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ (DÜZELTİLDİ)
+// 4. ADMIN: DETAYLI SİPARİŞ LİSTESİ
 router.get('/admin/all', async (req, res) => {
     try {
         const orders = await Order.find()
-            .sort({ _id: -1 }) // En yeni en üstte
+            .sort({ _id: -1 }) 
             .populate('items.product');
         res.status(200).json(orders);
     } catch (error) {
@@ -128,7 +199,7 @@ router.get('/admin/all', async (req, res) => {
     }
 });
 
-// 5. ADMIN: DURUM GÜNCELLE
+// 5. ADMIN: DURUM GÜNCELLE ve BİLDİRİM GÖNDER
 router.put('/admin/update-status/:id', async (req, res) => {
     try {
         const { status } = req.body;
@@ -137,6 +208,13 @@ router.put('/admin/update-status/:id', async (req, res) => {
             { status: status },
             { new: true }
         );
+
+        // --- 3. EKLENDİ: DURUM GÜNCELLEME BİLDİRİMİ ---
+        if (order) {
+            await sendOrderStatusNotification(order.userId, status, order._id);
+        }
+        // ----------------------------------------------
+
         res.status(200).json(order);
     } catch (error) {
         res.status(500).json({ error: "Durum güncellenemedi." });
