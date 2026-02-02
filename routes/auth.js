@@ -70,14 +70,12 @@ router.post('/register', async (req, res) => {
     const savedUser = await newUser.save();
 
     // 5. KAYIT SONRASI OTOMATİK TOKEN OLUŞTURMA
-    // Bu sayede Flutter tarafında kullanıcı tekrar login sayfasına gitmez
     const token = jwt.sign(
         { id: savedUser._id, isAdmin: savedUser.isAdmin }, 
         process.env.JWT_SECRET || "GIZLI_KELIME", 
         { expiresIn: '30d' }
     );
 
-    // Şifreyi objeden çıkarıp diğer bilgileri ayırıyoruz
     const { password: p, ...others } = savedUser._doc;
 
     // 6. TEK BİR YANIT GÖNDER
@@ -106,7 +104,6 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Şifre hatalı." });
 
-    // isVerified kontrolü artık hep true olacağı için problem çıkarmaz.
     const token = jwt.sign(
         { id: user._id, isAdmin: user.isAdmin }, 
         process.env.JWT_SECRET || "GIZLI_KELIME", 
