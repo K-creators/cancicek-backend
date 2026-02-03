@@ -3,8 +3,10 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Middleware
+// --- DÜZELTİLMİŞ KISIM BURASI ---
+// Tek satırda temiz bir şekilde import ediyoruz:
 const { verifyToken, verifyTokenAndAuthorization } = require('./verifyToken');
+// --------------------------------
 
 // --- CLOUDINARY AYARLARI ---
 const cloudinary = require('cloudinary').v2;
@@ -35,7 +37,7 @@ const validateUsername = (username) => {
 };
 
 // ============================================================
-// 1. KAYIT OLMA (REGISTER) - TELEFON YOK & OTOMATİK GİRİŞ
+// 1. KAYIT OLMA (REGISTER)
 // ============================================================
 router.post('/register', async (req, res) => {
   try {
@@ -69,7 +71,7 @@ router.post('/register', async (req, res) => {
 
     const savedUser = await newUser.save();
 
-    // 5. KAYIT SONRASI OTOMATİK TOKEN OLUŞTURMA
+    // 5. Token Oluştur
     const token = jwt.sign(
         { id: savedUser._id, isAdmin: savedUser.isAdmin }, 
         process.env.JWT_SECRET || "GIZLI_KELIME", 
@@ -78,7 +80,6 @@ router.post('/register', async (req, res) => {
 
     const { password: p, ...others } = savedUser._doc;
 
-    // 6. TEK BİR YANIT GÖNDER
     res.status(201).json({ 
         message: "Kayıt başarılı!", 
         token: token, 
@@ -250,11 +251,12 @@ router.delete("/delete/:id", verifyTokenAndAuthorization, async (req, res) => {
   }
 });
 
-// FCM Token Güncelleme/Kaydetme
+// ============================================================
+// 7. FCM TOKEN KAYDETME
+// ============================================================
 router.post('/save-token', verifyToken, async (req, res) => {
   try {
     const { token } = req.body;
-    // req.user.id, verifyToken middleware'inden gelir
     await User.findByIdAndUpdate(req.user.id, { fcmToken: token });
     res.status(200).json("Token başarıyla kaydedildi.");
   } catch (err) {
