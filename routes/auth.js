@@ -288,16 +288,22 @@ router.post('/forgot-password', async (req, res) => {
     // 4. E-Posta Gönderici Ayarları (Gmail Örneği)
     // NOT: Gmail kullanıyorsan "Uygulama Şifresi" almalısın.
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',  // Gmail sunucusu
+      port: 465,               // SSL Portu (Genelde Render'da en iyi çalışan budur)
+      secure: true,            // 465 portu için true olmalı
       auth: {
-        user: 'karakus.apo444@gmail.com', // <-- BURAYA KENDİ MAİLİNİ YAZ
-        pass: 'vefasrxititxamyi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
+        user: 'karakus.apo444@gmail.com', // Kendi mail adresin
+        pass: 'vefasrxititxamyi'     // 16 haneli Uygulama Şifresi
+      },
+      tls: {
+        // Sunucu sertifika hatası verirse bunu yoksay (Bazen gerekir)
+        rejectUnauthorized: false
       }
     });
 
     // 5. Mail İçeriği
     const mailOptions = {
-      from: 'Can Çiçek Destek <senin_mailin@gmail.com>',
+      from: 'Can Çiçek Destek <karakus.apo444@gmail.com>',
       to: user.email,
       subject: 'Şifre Sıfırlama Kodu - Can Çiçek',
       text: `Merhaba ${user.fullName},\n\nŞifreni sıfırlamak için gereken kod: ${code}\n\nBu kod 10 dakika geçerlidir.\nEğer bu isteği sen yapmadıysan, lütfen dikkate alma.`
