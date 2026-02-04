@@ -288,12 +288,15 @@ router.post('/forgot-password', async (req, res) => {
     // 4. E-Posta Gönderici Ayarları (GÜVENLİ YÖNTEM)
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.brevo.com', 
-      port: 587,
+      port: 2525,
       secure: false, 
       auth: {
         // Artık şifreler kodda yazmıyor, sunucudan çekiyor
         user: process.env.SMTP_EMAIL, 
         pass: process.env.SMTP_PASSWORD 
+      },
+      tls: {
+        rejectUnauthorized: false
       }
     });
 
