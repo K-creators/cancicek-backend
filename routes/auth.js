@@ -291,7 +291,7 @@ router.post('/forgot-password', async (req, res) => {
       service: 'gmail',
       auth: {
         user: 'karakus.apo444@gmail.com', // <-- BURAYA KENDİ MAİLİNİ YAZ
-        pass: 'vefa srxi titx amyi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
+        pass: 'vefasrxititxamyi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
       }
     });
 
