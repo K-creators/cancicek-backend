@@ -285,28 +285,24 @@ router.post('/forgot-password', async (req, res) => {
     user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // Şu an + 10 dk
     await user.save();
 
-    // 4. E-Posta Gönderici Ayarları (Gmail Örneği)
-    // NOT: Gmail kullanıyorsan "Uygulama Şifresi" almalısın.
+    // 4. E-Posta Gönderici Ayarları (GÜVENLİ YÖNTEM)
     const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',  // Gmail sunucusu
-      port: 587,               // SSL Portu (Genelde Render'da en iyi çalışan budur)
-      secure: false,            // 587 portu için false olmalı
+      host: 'smtp-relay.brevo.com', 
+      port: 587,
+      secure: false, 
       auth: {
-        user: 'karakus.apo444@gmail.com', // Kendi mail adresin
-        pass: 'vefasrxititxamyi'     // 16 haneli Uygulama Şifresi
-      },
-      tls: {
-        // Sunucu sertifika hatası verirse bunu yoksay (Bazen gerekir)
-        rejectUnauthorized: false
+        // Artık şifreler kodda yazmıyor, sunucudan çekiyor
+        user: process.env.SMTP_EMAIL, 
+        pass: process.env.SMTP_PASSWORD 
       }
     });
 
-    // 5. Mail İçeriği
     const mailOptions = {
-      from: 'Can Çiçek Destek <karakus.apo444@gmail.com>',
+      // Gönderen kısmını da değişkene bağlayabilirsin veya böyle kalabilir
+      from: `Can Çiçek <${process.env.SMTP_EMAIL}>`, 
       to: user.email,
       subject: 'Şifre Sıfırlama Kodu - Can Çiçek',
-      text: `Merhaba ${user.fullName},\n\nŞifreni sıfırlamak için gereken kod: ${code}\n\nBu kod 10 dakika geçerlidir.\nEğer bu isteği sen yapmadıysan, lütfen dikkate alma.`
+      text: `Merhaba ${user.fullName},\n\nŞifreni sıfırlamak için gereken kod: ${code}\n\nBu kod 10 dakika geçerlidir.`
     };
 
     await transporter.sendMail(mailOptions);
