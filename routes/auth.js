@@ -290,8 +290,8 @@ router.post('/forgot-password', async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: 'senin_mailin@gmail.com', // <-- BURAYA KENDİ MAİLİNİ YAZ
-        pass: 'gmail_uygulama_sifresi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
+        user: 'karakus.apo444@gmail.com', // <-- BURAYA KENDİ MAİLİNİ YAZ
+        pass: 'vefa srxi titx amyi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
       }
     });
 
