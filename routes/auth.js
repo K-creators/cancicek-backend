@@ -289,8 +289,8 @@ router.post('/forgot-password', async (req, res) => {
     // NOT: Gmail kullanıyorsan "Uygulama Şifresi" almalısın.
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',  // Gmail sunucusu
-      port: 465,               // SSL Portu (Genelde Render'da en iyi çalışan budur)
-      secure: true,            // 465 portu için true olmalı
+      port: 587,               // SSL Portu (Genelde Render'da en iyi çalışan budur)
+      secure: false,            // 587 portu için false olmalı
       auth: {
         user: 'karakus.apo444@gmail.com', // Kendi mail adresin
         pass: 'vefasrxititxamyi'     // 16 haneli Uygulama Şifresi
