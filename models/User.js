@@ -5,13 +5,14 @@ const UserSchema = new mongoose.Schema(
     fullName: { type: String, required: true },
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
-    phone: { type: String, required: true },
     password: { type: String, required: true },
     profileImage: { type: String, default: "" }, 
     
     // --- YENİ: KULLANICI ADI DEĞİŞTİRME TARİHİ ---
     lastUsernameChange: { type: Date, default: null },
     fcmToken: { type: String, default: "" },
+    resetPasswordToken: { type: String }, // Gönderilen 6 haneli kod
+    resetPasswordExpires: { type: Date }, // Kodun geçerlilik süresi
 
     isAdmin: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer'); // Dosyanın en tepesine ekle
 
 // --- DÜZELTİLMİŞ KISIM BURASI ---
 // Tek satırda temiz bir şekilde import ediyoruz:
@@ -261,6 +262,89 @@ router.post('/save-token', verifyToken, async (req, res) => {
     res.status(200).json("Token başarıyla kaydedildi.");
   } catch (err) {
     res.status(500).json(err);
+  }
+});
+// ============================================================
+// 8. ŞİFREMİ UNUTTUM (E-POSTA GÖNDERME)
+// ============================================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // 1. Kullanıcıyı Bul
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı." });
+    }
+
+    // 2. 6 Haneli Kod Üret (Rastgele)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // 3. Kodu Veritabanına Kaydet (10 dakika geçerli olsun)
+    user.resetPasswordToken = code;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // Şu an + 10 dk
+    await user.save();
+
+    // 4. E-Posta Gönderici Ayarları (Gmail Örneği)
+    // NOT: Gmail kullanıyorsan "Uygulama Şifresi" almalısın.
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: 'senin_mailin@gmail.com', // <-- BURAYA KENDİ MAİLİNİ YAZ
+        pass: 'gmail_uygulama_sifresi'  // <-- BURAYA GMAIL UYGULAMA ŞİFRENİ YAZ
+      }
+    });
+
+    // 5. Mail İçeriği
+    const mailOptions = {
+      from: 'Can Çiçek Destek <senin_mailin@gmail.com>',
+      to: user.email,
+      subject: 'Şifre Sıfırlama Kodu - Can Çiçek',
+      text: `Merhaba ${user.fullName},\n\nŞifreni sıfırlamak için gereken kod: ${code}\n\nBu kod 10 dakika geçerlidir.\nEğer bu isteği sen yapmadıysan, lütfen dikkate alma.`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Doğrulama kodu e-posta adresinize gönderildi." });
+
+  } catch (err) {
+    console.error("Mail Hatası:", err);
+    res.status(500).json({ message: "E-posta gönderilirken hata oluştu." });
+  }
+});
+
+// ============================================================
+// 9. ŞİFRE SIFIRLAMA (KOD DOĞRULAMA VE YENİ ŞİFRE)
+// ============================================================
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    // 1. Kullanıcıyı ve Kodu Doğrula
+    // Hem e-posta tutmalı, hem kod tutmalı, hem de süre dolmamış olmalı ($gt = greater than)
+    const user = await User.findOne({ 
+      email: email,
+      resetPasswordToken: code,
+      resetPasswordExpires: { $gt: Date.now() } 
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Kod geçersiz veya süresi dolmuş." });
+    }
+
+    // 2. Yeni Şifreyi Hashle
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // 3. Kodu Temizle (Tek kullanımlık olsun)
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({ message: "Şifreniz başarıyla değiştirildi! Yeni şifrenizle giriş yapabilirsiniz." });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
